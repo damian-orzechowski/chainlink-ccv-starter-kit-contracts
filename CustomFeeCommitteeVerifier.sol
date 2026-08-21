@@ -41,6 +41,11 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
   ///         token is unpriced and contributes zero value (see {getFee}).
   mapping(address token => IPriceAdapter adapter) internal s_priceAdapter;
 
+  error CapBelowFloor(uint16 capUSDCents, uint16 minFeeUSDCents);
+  error FeeBpsTooHigh(uint16 feeBps);
+  error ZeroToken();
+  error LengthMismatch();
+
   /// @notice Emitted when the bps fee policy for a destination chain is set.
   event CustomFeeConfigSet(uint64 indexed destChainSelector, CustomFeeConfig config);
 
@@ -84,10 +89,6 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
     RemoteChainConfig storage baseCfg = _getRemoteChainConfig(destChainSelector);
     CustomFeeConfig storage cfg = s_feeConfig[destChainSelector];
 
-    // TODO Not used by the fee model; still unused until later steps read them.
-    extraArgs;
-    requestedFinality;
-
     // No bps config -> stock flat-fee behavior.
     if (!cfg.enabled) {
       return (baseCfg.feeUSDCents, baseCfg.gasForVerification, baseCfg.payloadSizeBytes);
@@ -118,32 +119,31 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
   // ---------------------------------------------------------------------------
 
   /// @notice Set (or update) the bps fee policy for a destination chain.
-  /// @dev    TODO (later step): access control (owner-only) + input validation
-  ///         (capUSDCents <= 65_535, capUSDCents >= minFeeUSDCents). Left
-  ///         permissionless-looking on purpose so the guard is a conscious
-  ///         decision, not a copy-paste default.
-  function setFeeConfig(uint64 destChainSelector, CustomFeeConfig calldata config) external /* onlyOwner */  {
-    // TODO: validation + onlyOwner
+  function setFeeConfig(uint64 destChainSelector, CustomFeeConfig calldata config) external onlyOwner {
+    if (config.feeBps > 10_000) revert FeeBpsTooHigh(config.feeBps);
+    if (config.capUSDCents < config.minFeeUSDCents) revert CapBelowFloor(config.capUSDCents, config.minFeeUSDCents);
     s_feeConfig[destChainSelector] = config;
     emit CustomFeeConfigSet(destChainSelector, config);
   }
 
   /// @notice Register (or clear) the price adapter for a token. Pass
   ///         `adapter == address(0)` to unregister.
-  /// @dev    TODO (later step): access control (owner-only). Optionally assert
-  ///         the adapter is non-zero-returning / supports {IPriceAdapter}.
-  function setPriceAdapter(address token, IPriceAdapter adapter) public /* onlyOwner */  {
-    // TODO: onlyOwner
-    s_priceAdapter[token] = adapter;
-    emit PriceAdapterSet(token, address(adapter));
+  function setPriceAdapter(address token, IPriceAdapter adapter) external onlyOwner {
+    _setPriceAdapter(token, adapter);
   }
 
-  /// @notice Batch variant of {setPriceAdapter}.
-  function setPriceAdapters(address[] calldata tokens, IPriceAdapter[] calldata adapters) external /* onlyOwner */  {
-    require(tokens.length == adapters.length, "length mismatch");
+  /// @notice Batch variant of setPriceAdapter.
+  function setPriceAdapters(address[] calldata tokens, IPriceAdapter[] calldata adapters) external onlyOwner {
+    if (tokens.length != adapters.length) revert LengthMismatch();
     for (uint256 i = 0; i < tokens.length; ++i) {
-      setPriceAdapter(tokens[i], adapters[i]);
+      _setPriceAdapter(tokens[i], adapters[i]);
     }
+  }
+
+  function _setPriceAdapter(address token, IPriceAdapter adapter) internal {
+    if (token == address(0)) revert ZeroToken();
+    s_priceAdapter[token] = adapter;
+    emit PriceAdapterSet(token, address(adapter));
   }
 
   /// @notice Read the bps fee policy for a destination chain.

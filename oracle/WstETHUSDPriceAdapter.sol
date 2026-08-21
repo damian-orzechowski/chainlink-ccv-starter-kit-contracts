@@ -2,31 +2,55 @@
 pragma solidity ^0.8.26;
 
 import { IPriceAdapter } from "./IPriceAdapter.sol";
+import { IAggregatorV3 } from "./IAggregatorV3.sol";
+import { PriceFeedLib } from "./PriceFeedLib.sol";
 
-/// @title WstETHUSDPriceAdapter (STUB)
-/// @notice Skeleton adapter converting wstETH -> USD cents. Wiring only; the
-///         oracle reads and rate composition are the main work item
-///         (scoping doc Section 4) and land in a later step.
-/// @dev    Two deployment shapes are expected (configure per chain):
-///           - Mainnet: wstETH.stEthPerToken() * stETH/USD (or ETH/USD) feed
-///           - L2:      Chainlink wstETH exchange-rate feed * stETH-or-ETH/USD feed
-///         Both must guard against stale rounds and decimals mismatches
-///         (scoping doc Section 5.2 audit focus).
+interface IWstETH {
+  /// @notice stETH per 1 wstETH, scaled by 1e18 (Lido's own on-chain rate).
+  function stEthPerToken() external view returns (uint256);
+}
+
+/// @title WstETHUSDPriceAdapter (mainnet)
+/// @notice Prices wstETH in USD cents on a chain where Lido's rate is readable
+///         directly from the wstETH token (i.e. Ethereum mainnet):
+///           value_USD = amount_wstETH * (stETH per wstETH) * (USD per stETH)
+///         (scoping doc Section 4). One concrete {IPriceAdapter}; register it
+///         against the wstETH token address in the verifier.
+/// @dev    `USD_FEED` should be a stETH/USD feed. An ETH/USD feed also works but
+///         ignores any stETH<->ETH depeg — acceptable for a small capped fee,
+///         but a documented approximation.
+///         Assumes wstETH has 18 decimals and `stEthPerToken()` is 1e18-scaled
+///         (both true for Lido's wstETH).
 contract WstETHUSDPriceAdapter is IPriceAdapter {
-  error NotImplemented();
+  using PriceFeedLib for IAggregatorV3;
 
-  // TODO: immutables for the feed addresses / wstETH token, decimals, and
-  // max staleness. Set them in the constructor once the sourcing is decided.
+  error ZeroAddress();
+
+  uint256 private constant WAD = 1e18; // wstETH & stETH decimals
+  uint256 private constant CENTS_PER_USD = 100;
+
+  IWstETH public immutable WSTETH;
+  IAggregatorV3 public immutable USD_FEED; // stETH/USD (or ETH/USD)
+  uint8 public immutable USD_FEED_DECIMALS;
+  uint256 public immutable MAX_STALENESS; // seconds
+
+  /// @param wstETH        the wstETH token (provides stEthPerToken()).
+  /// @param usdFeed       Chainlink stETH/USD (or ETH/USD) aggregator.
+  /// @param maxStaleness  max age (seconds) accepted for the feed's round.
+  constructor(address wstETH, address usdFeed, uint256 maxStaleness) {
+    if (wstETH == address(0) || usdFeed == address(0)) revert ZeroAddress();
+    WSTETH = IWstETH(wstETH);
+    USD_FEED = IAggregatorV3(usdFeed);
+    USD_FEED_DECIMALS = IAggregatorV3(usdFeed).decimals();
+    MAX_STALENESS = maxStaleness;
+  }
 
   /// @inheritdoc IPriceAdapter
-  function getValueInUSDCents(uint256 wstETHAmount) external view virtual returns (uint256) {
-    // silence unused-parameter warning until implemented
-    wstETHAmount;
-    // TODO (later step):
-    //   1. Read stETH-per-wstETH rate (mainnet: token contract; L2: exchange-rate feed).
-    //   2. Read stETH/USD or ETH/USD from a Chainlink aggregator (latestRoundData).
-    //   3. Assert both rounds are fresh (updatedAt within max staleness) and answer > 0.
-    //   4. Compose with correct decimals -> USD cents. Round down.
-    revert NotImplemented();
+  function getValueInUSDCents(uint256 amount) external view virtual returns (uint256) {
+    // wstETH -> stETH (both 18 decimals): stEthWei = amount * stEthPerToken / 1e18
+    uint256 stEthWei = (amount * WSTETH.stEthPerToken()) / WAD;
+    // stETH -> USD cents: stEthWei/1e18 * usdPrice/10^dec * 100
+    uint256 usdPrice = USD_FEED.readFresh(MAX_STALENESS);
+    return (stEthWei * usdPrice * CENTS_PER_USD) / (WAD * (10 ** USD_FEED_DECIMALS));
   }
 }
