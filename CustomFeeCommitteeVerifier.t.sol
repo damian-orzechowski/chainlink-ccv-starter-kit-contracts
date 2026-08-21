@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {CustomFeeCommitteeVerifier} from "../src/CustomFeeCommitteeVerifier.sol";
-import {CustomFeeConfig} from "../src/config/CustomFeeConfig.sol";
+import { CustomFeeCommitteeVerifier } from "../src/CustomFeeCommitteeVerifier.sol";
+import { CustomFeeConfig } from "../src/config/CustomFeeConfig.sol";
 
 /// @notice Test skeleton for the bps + cap fee override.
 /// @dev    Section 5.1 of the scoping doc splits testing into:
