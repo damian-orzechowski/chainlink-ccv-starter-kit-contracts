@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-import { IWstETHUSDPriceAdapter } from "./IWstETHUSDPriceAdapter.sol";
+import { IPriceAdapter } from "./IPriceAdapter.sol";
 
 /// @title WstETHUSDPriceAdapter (STUB)
 /// @notice Skeleton adapter converting wstETH -> USD cents. Wiring only; the
@@ -12,13 +12,13 @@ import { IWstETHUSDPriceAdapter } from "./IWstETHUSDPriceAdapter.sol";
 ///           - L2:      Chainlink wstETH exchange-rate feed * stETH-or-ETH/USD feed
 ///         Both must guard against stale rounds and decimals mismatches
 ///         (scoping doc Section 5.2 audit focus).
-contract WstETHUSDPriceAdapter is IWstETHUSDPriceAdapter {
+contract WstETHUSDPriceAdapter is IPriceAdapter {
   error NotImplemented();
 
   // TODO: immutables for the feed addresses / wstETH token, decimals, and
   // max staleness. Set them in the constructor once the sourcing is decided.
 
-  /// @inheritdoc IWstETHUSDPriceAdapter
+  /// @inheritdoc IPriceAdapter
   function getValueInUSDCents(uint256 wstETHAmount) external view virtual returns (uint256) {
     // silence unused-parameter warning until implemented
     wstETHAmount;

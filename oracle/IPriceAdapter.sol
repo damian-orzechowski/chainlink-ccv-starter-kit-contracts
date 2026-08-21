@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-/// @title IWstETHUSDPriceAdapter
+/// @title IPriceAdapter
 /// @notice Prices an amount of wstETH (wei) in USD cents for use inside
 ///         `getFee` (a `view` context). Isolated behind an interface so the
 ///         mainnet and L2 sourcing strategies (scoping doc Section 4) can be
@@ -13,7 +13,7 @@ pragma solidity ^0.8.26;
 ///                  stETH/USD (or ETH/USD) feed for the second hop.
 ///         L2:      read the Chainlink wstETH/ETH (or wstETH/stETH) exchange-rate
 ///                  feed, then multiply by stETH/USD or ETH/USD.
-interface IWstETHUSDPriceAdapter {
+interface IPriceAdapter {
   /// @notice Value of `wstETHAmount` (in wei) expressed in USD cents.
   /// @param  wstETHAmount amount of wstETH, in wei (1e18 = 1 wstETH).
   /// @return valueUSDCents value in USD cents. NOT clamped — the caller applies

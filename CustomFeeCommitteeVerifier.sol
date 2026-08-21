@@ -7,7 +7,7 @@ import { ICrossChainVerifierV1 } from "@chainlink-ccip/interfaces/ICrossChainVer
 import { Client } from "@chainlink-ccip/libraries/Client.sol";
 
 import { CustomFeeConfig } from "./config/CustomFeeConfig.sol";
-import { IWstETHUSDPriceAdapter } from "./oracle/IWstETHUSDPriceAdapter.sol";
+import { IPriceAdapter } from "./oracle/IPriceAdapter.sol";
 
 /// @title CustomFeeCommitteeVerifier
 /// @notice A thin {CommitteeVerifier} subclass that charges the CCV operator a
@@ -68,28 +68,23 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
     RemoteChainConfig storage baseCfg = _getRemoteChainConfig(destChainSelector);
     CustomFeeConfig storage cfg = s_customFeeConfig[destChainSelector];
 
-    // silence unused-parameter warnings until the logic below is implemented
-    message;
-    extraArgs;
-    requestedFinality;
+    // No bps config -> stock flat-fee behavior.
+    if (!cfg.enabled) {
+      return (baseCfg.feeUSDCents, baseCfg.gasForVerification, baseCfg.payloadSizeBytes);
+    }
 
-    // TODO (later step) — implement the bps + floor + cap model:
-    //
-    //   if (!cfg.enabled) {
-    //     return (baseCfg.feeUSDCents, baseCfg.gasForVerification, baseCfg.payloadSizeBytes);
-    //   }
-    //   uint256 valueUSDCents = message.tokenAmounts.length == 0
-    //     ? 0
-    //     : IWstETHUSDPriceAdapter(cfg.priceAdapter).getValueInUSDCents(message.tokenAmounts[0].amount);
-    //   uint256 fee = (valueUSDCents * cfg.feeBps) / 10_000;      // feeBps 5 -> 0.05%
-    //   if (fee < cfg.minFeeUSDCents) fee = cfg.minFeeUSDCents;   // floor
-    //   if (fee > cfg.capUSDCents)    fee = cfg.capUSDCents;      // cap (<= 65_535) BEFORE cast
-    //   return (uint16(fee), baseCfg.gasForVerification, baseCfg.payloadSizeBytes);
-    //
-    // Placeholder pass-through so the contract compiles and behaves exactly like
-    // the stock CommitteeVerifier until the override is filled in:
-    cfg; // referenced to avoid unused warning while the body is a stub
-    return (baseCfg.feeUSDCents, baseCfg.gasForVerification, baseCfg.payloadSizeBytes);
+    // Value the transfer in USD cents; no token transfer => 0 => floor applies.
+    uint256 valueUSDCents = message.tokenAmounts.length == 0
+      ? 0
+      : IPriceAdapter(cfg.priceAdapter).getValueInUSDCents(message.tokenAmounts[0].amount);
+
+    //TODO we should add up total amount
+
+    uint256 fee = (valueUSDCents * uint256(cfg.feeBps)) / 10_000; // feeBps 5 -> 0.05%
+    if (fee < cfg.minFeeUSDCents) fee = cfg.minFeeUSDCents; // floor
+    if (fee > cfg.capUSDCents) fee = cfg.capUSDCents; // cap (<= 65_535)
+
+    return (uint16(fee), baseCfg.gasForVerification, baseCfg.payloadSizeBytes);
   }
 
   // ---------------------------------------------------------------------------

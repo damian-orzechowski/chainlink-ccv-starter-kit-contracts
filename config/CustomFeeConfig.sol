@@ -7,7 +7,7 @@ pragma solidity ^0.8.26;
 ///         setters, deploy scripts and tests without a library indirection.
 struct CustomFeeConfig {
   /// @notice wstETH -> USD price adapter used to value the transfer for this
-  ///         destination chain. See {IWstETHUSDPriceAdapter}.
+  ///         destination chain. See {IPriceAdapter}.
   /// @dev    Sourcing differs mainnet vs L2 (scoping doc Section 4), so the
   ///         adapter is configured per chain.
   address priceAdapter;
