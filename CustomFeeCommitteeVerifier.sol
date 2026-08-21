@@ -17,24 +17,39 @@ import { IPriceAdapter } from "./oracle/IPriceAdapter.sol";
 ///         fee withdrawal (`withdrawFeeTokens`) — is inherited unchanged so the
 ///         fee path stays cleanly isolated from the verification path
 ///         (scoping doc Section 2, "Recommended structure").
-/// @dev    The default CCIP v2.0 CommitteeVerifier only supports a flat
-///         per-message fee via `RemoteChainConfig.feeUSDCents`. This contract
-///         overrides ONLY `getFee` to add the bps + cap model.
+/// @dev    Token-agnostic by design. Transfer value is computed by pricing each
+///         transferred token with a token-specific {IPriceAdapter} and summing
+///         the USD-cent results, so a single deployment supports messages that
+///         carry multiple, differently-denominated tokens. wstETH is just one
+///         adapter you can register; nothing here is asset-specific.
+///
+///         Two independent config surfaces:
+///           - fee policy   : per destination chain ({CustomFeeConfig})
+///           - price adapter : per token, global (a token's USD value does not
+///                             depend on the destination)
 ///
 ///         Deployment: register the deployed instance as the `implementation`
 ///         behind the `VersionedVerifierResolver` (outbound per dest chain,
 ///         inbound per version tag) using a distinct `versionTag` and a
 ///         non-overlapping signer set (scoping doc Section 3).
 contract CustomFeeCommitteeVerifier is CommitteeVerifier {
-  /// @notice Per-destination-chain bps fee configuration.
-  mapping(uint64 destChainSelector => CustomFeeConfig config) internal s_customFeeConfig;
+  /// @notice Per-destination-chain bps fee policy.
+  mapping(uint64 destChainSelector => CustomFeeConfig config) internal s_feeConfig;
 
-  /// @notice Emitted when the bps fee config for a destination chain is set.
+  /// @notice Per-token price adapter registry (token address on this chain ->
+  ///         adapter that prices it in USD cents). Unset (address(0)) means the
+  ///         token is unpriced and contributes zero value (see {getFee}).
+  mapping(address token => IPriceAdapter adapter) internal s_priceAdapter;
+
+  /// @notice Emitted when the bps fee policy for a destination chain is set.
   event CustomFeeConfigSet(uint64 indexed destChainSelector, CustomFeeConfig config);
 
+  /// @notice Emitted when a token's price adapter is set (or cleared to address(0)).
+  event PriceAdapterSet(address indexed token, address indexed adapter);
+
   // TODO (later step): consider an event emitted from the send path (not from
-  // the `view` getFee) to record { messageId, feeToken, amount, feeUSDCents,
-  // oracleRate } for accounting (scoping doc Section 4 note).
+  // the `view` getFee) to record { messageId, feeToken, amount, feeUSDCents }
+  // for accounting (scoping doc Section 4 note).
 
   /// @param dynamicConfig     inherited CommitteeVerifier dynamic config (incl. feeAggregator)
   /// @param storageLocations  inherited BaseVerifier storage locations
@@ -49,9 +64,10 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
   // ---------------------------------------------------------------------------
 
   /// @notice Overrides BaseVerifier.getFee (declared `virtual`, inherited via
-  ///         CommitteeVerifier). Returns a value-based fee for token transfers, clamped to
-  ///         `[minFeeUSDCents, capUSDCents]`; falls back to the inherited flat
-  ///         fee when no bps config is enabled for `destChainSelector`.
+  ///         CommitteeVerifier). Returns a value-based fee for token transfers,
+  ///         clamped to `[minFeeUSDCents, capUSDCents]`; falls back to the
+  ///         inherited flat fee when no bps policy is enabled for
+  ///         `destChainSelector`.
   function getFee(
     uint64 destChainSelector,
     Client.EVM2AnyMessage memory message,
@@ -63,22 +79,32 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
     override(BaseVerifier, ICrossChainVerifierV1)
     returns (uint16 feeUSDCents, uint32 gasForVerification, uint32 payloadSizeBytes)
   {
-    // Base config still supplies gasForVerification / payloadSizeBytes and the
-    // flat-fee fallback.
+    // The inherited base config always supplies gasForVerification /
+    // payloadSizeBytes, and the flat feeUSDCents used as the fallback.
     RemoteChainConfig storage baseCfg = _getRemoteChainConfig(destChainSelector);
-    CustomFeeConfig storage cfg = s_customFeeConfig[destChainSelector];
+    CustomFeeConfig storage cfg = s_feeConfig[destChainSelector];
+
+    // TODO Not used by the fee model; still unused until later steps read them.
+    extraArgs;
+    requestedFinality;
 
     // No bps config -> stock flat-fee behavior.
     if (!cfg.enabled) {
       return (baseCfg.feeUSDCents, baseCfg.gasForVerification, baseCfg.payloadSizeBytes);
     }
 
-    // Value the transfer in USD cents; no token transfer => 0 => floor applies.
-    uint256 valueUSDCents = message.tokenAmounts.length == 0
-      ? 0
-      : IPriceAdapter(cfg.priceAdapter).getValueInUSDCents(message.tokenAmounts[0].amount);
-
-    //TODO we should add up total amount
+    // Value the transfer by pricing each token with its own adapter and summing
+    // the USD-cent results. This supports multi-token and mixed-token messages.
+    // A message with no (priced) token transfer has zero value and falls to the
+    // floor.
+    uint256 valueUSDCents;
+    uint256 nTokens = message.tokenAmounts.length;
+    for (uint256 i = 0; i < nTokens; ++i) {
+      IPriceAdapter adapter = s_priceAdapter[message.tokenAmounts[i].token];
+      // Unpriced token -> contributes zero value
+      if (address(adapter) == address(0)) continue;
+      valueUSDCents += adapter.getValueInUSDCents(message.tokenAmounts[i].amount);
+    }
 
     uint256 fee = (valueUSDCents * uint256(cfg.feeBps)) / 10_000; // feeBps 5 -> 0.05%
     if (fee < cfg.minFeeUSDCents) fee = cfg.minFeeUSDCents; // floor
@@ -91,19 +117,42 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
   // Config administration
   // ---------------------------------------------------------------------------
 
-  /// @notice Set (or update) the bps fee config for a destination chain.
-  /// @dev    TODO (later step): access control (owner-only), input validation
-  ///         (capUSDCents <= 65_535, capUSDCents >= minFeeUSDCents, priceAdapter
-  ///         != address(0) when enabled). Left permissionless-looking on purpose
-  ///         so the guard is a conscious decision, not a copy-paste default.
-  function setCustomFeeConfig(uint64 destChainSelector, CustomFeeConfig calldata config) external /* onlyOwner */  {
+  /// @notice Set (or update) the bps fee policy for a destination chain.
+  /// @dev    TODO (later step): access control (owner-only) + input validation
+  ///         (capUSDCents <= 65_535, capUSDCents >= minFeeUSDCents). Left
+  ///         permissionless-looking on purpose so the guard is a conscious
+  ///         decision, not a copy-paste default.
+  function setFeeConfig(uint64 destChainSelector, CustomFeeConfig calldata config) external /* onlyOwner */  {
     // TODO: validation + onlyOwner
-    s_customFeeConfig[destChainSelector] = config;
+    s_feeConfig[destChainSelector] = config;
     emit CustomFeeConfigSet(destChainSelector, config);
   }
 
-  /// @notice Read the bps fee config for a destination chain.
-  function getCustomFeeConfig(uint64 destChainSelector) external view returns (CustomFeeConfig memory) {
-    return s_customFeeConfig[destChainSelector];
+  /// @notice Register (or clear) the price adapter for a token. Pass
+  ///         `adapter == address(0)` to unregister.
+  /// @dev    TODO (later step): access control (owner-only). Optionally assert
+  ///         the adapter is non-zero-returning / supports {IPriceAdapter}.
+  function setPriceAdapter(address token, IPriceAdapter adapter) public /* onlyOwner */  {
+    // TODO: onlyOwner
+    s_priceAdapter[token] = adapter;
+    emit PriceAdapterSet(token, address(adapter));
+  }
+
+  /// @notice Batch variant of {setPriceAdapter}.
+  function setPriceAdapters(address[] calldata tokens, IPriceAdapter[] calldata adapters) external /* onlyOwner */  {
+    require(tokens.length == adapters.length, "length mismatch");
+    for (uint256 i = 0; i < tokens.length; ++i) {
+      setPriceAdapter(tokens[i], adapters[i]);
+    }
+  }
+
+  /// @notice Read the bps fee policy for a destination chain.
+  function getFeeConfig(uint64 destChainSelector) external view returns (CustomFeeConfig memory) {
+    return s_feeConfig[destChainSelector];
+  }
+
+  /// @notice Read the price adapter registered for a token (address(0) if none).
+  function getPriceAdapter(address token) external view returns (IPriceAdapter) {
+    return s_priceAdapter[token];
   }
 }
