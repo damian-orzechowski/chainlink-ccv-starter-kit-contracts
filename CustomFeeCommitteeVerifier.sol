@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-import {CommitteeVerifier} from "@chainlink-ccip/ccvs/CommitteeVerifier.sol";
-import {BaseVerifier} from "@chainlink-ccip/ccvs/components/BaseVerifier.sol";
-import {ICrossChainVerifierV1} from "@chainlink-ccip/interfaces/ICrossChainVerifierV1.sol";
-import {Client} from "@chainlink-ccip/libraries/Client.sol";
+import { CommitteeVerifier } from "@chainlink-ccip/ccvs/CommitteeVerifier.sol";
+import { BaseVerifier } from "@chainlink-ccip/ccvs/components/BaseVerifier.sol";
+import { ICrossChainVerifierV1 } from "@chainlink-ccip/interfaces/ICrossChainVerifierV1.sol";
+import { Client } from "@chainlink-ccip/libraries/Client.sol";
 
-import {CustomFeeConfig} from "./config/CustomFeeConfig.sol";
-import {IWstETHUSDPriceAdapter} from "./oracle/IWstETHUSDPriceAdapter.sol";
+import { CustomFeeConfig } from "./config/CustomFeeConfig.sol";
+import { IWstETHUSDPriceAdapter } from "./oracle/IWstETHUSDPriceAdapter.sol";
 
 /// @title CustomFeeCommitteeVerifier
 /// @notice A thin {CommitteeVerifier} subclass that charges the CCV operator a
@@ -40,12 +40,9 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
   /// @param storageLocations  inherited BaseVerifier storage locations
   /// @param rmn               RMN address
   /// @param versionTag        distinct version tag for resolver registration (Section 3)
-  constructor(
-    DynamicConfig memory dynamicConfig,
-    string[] memory storageLocations,
-    address rmn,
-    bytes4 versionTag
-  ) CommitteeVerifier(dynamicConfig, storageLocations, rmn, versionTag) {}
+  constructor(DynamicConfig memory dynamicConfig, string[] memory storageLocations, address rmn, bytes4 versionTag)
+    CommitteeVerifier(dynamicConfig, storageLocations, rmn, versionTag)
+  { }
 
   // ---------------------------------------------------------------------------
   // Fee override — THE single point of change (scoping doc Section 2)
@@ -104,7 +101,7 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
   ///         (capUSDCents <= 65_535, capUSDCents >= minFeeUSDCents, priceAdapter
   ///         != address(0) when enabled). Left permissionless-looking on purpose
   ///         so the guard is a conscious decision, not a copy-paste default.
-  function setCustomFeeConfig(uint64 destChainSelector, CustomFeeConfig calldata config) external /* onlyOwner */ {
+  function setCustomFeeConfig(uint64 destChainSelector, CustomFeeConfig calldata config) external /* onlyOwner */  {
     // TODO: validation + onlyOwner
     s_customFeeConfig[destChainSelector] = config;
     emit CustomFeeConfigSet(destChainSelector, config);

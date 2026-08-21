@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-import {IWstETHUSDPriceAdapter} from "./IWstETHUSDPriceAdapter.sol";
+import { IWstETHUSDPriceAdapter } from "./IWstETHUSDPriceAdapter.sol";
 
 /// @title WstETHUSDPriceAdapter (STUB)
 /// @notice Skeleton adapter converting wstETH -> USD cents. Wiring only; the
