@@ -6,11 +6,6 @@ pragma solidity ^0.8.26;
 /// @dev    File-level struct so it can be shared by the verifier, config
 ///         setters, deploy scripts and tests without a library indirection.
 struct CustomFeeConfig {
-  /// @notice wstETH -> USD price adapter used to value the transfer for this
-  ///         destination chain. See {IPriceAdapter}.
-  /// @dev    Sourcing differs mainnet vs L2 (scoping doc Section 4), so the
-  ///         adapter is configured per chain.
-  address priceAdapter;
   /// @notice Fee in basis points of transfer value. e.g. 5 = 0.05%.
   uint16 feeBps;
   /// @notice Minimum fee floor, in USD cents. Applied when the bps fee is below it.

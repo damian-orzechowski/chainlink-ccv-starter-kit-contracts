@@ -52,9 +52,6 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
   /// @notice Emitted when a token's price adapter is set (or cleared to address(0)).
   event PriceAdapterSet(address indexed token, address indexed adapter);
 
-  // TODO (later step): consider an event emitted from the send path (not from
-  // the `view` getFee) to record { messageId, feeToken, amount, feeUSDCents }
-  // for accounting (scoping doc Section 4 note).
 
   /// @param dynamicConfig     inherited CommitteeVerifier dynamic config (incl. feeAggregator)
   /// @param storageLocations  inherited BaseVerifier storage locations
