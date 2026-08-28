@@ -52,7 +52,6 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
   /// @notice Emitted when a token's price adapter is set (or cleared to address(0)).
   event PriceAdapterSet(address indexed token, address indexed adapter);
 
-
   /// @param dynamicConfig     inherited CommitteeVerifier dynamic config (incl. feeAggregator)
   /// @param storageLocations  inherited BaseVerifier storage locations
   /// @param rmn               RMN address
