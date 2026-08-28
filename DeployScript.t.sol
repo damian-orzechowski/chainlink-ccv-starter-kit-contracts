@@ -114,8 +114,7 @@ contract DeployScriptTest is Test {
       (signers[0], signers[1]) = (signers[1], signers[0]);
     }
     cfg.sigs = new DeployCustomFeeCommitteeVerifier.SignatureConfigInput[](1);
-    cfg.sigs[0] =
-      DeployCustomFeeCommitteeVerifier.SignatureConfigInput({
+    cfg.sigs[0] = DeployCustomFeeCommitteeVerifier.SignatureConfigInput({
       signers: signers, sourceChainSelector: SRC, threshold: 2
     });
   }
