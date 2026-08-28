@@ -19,9 +19,4 @@ interface IPriceAdapter {
   /// @return valueUSDCents value in USD cents. NOT clamped — the caller applies
   ///         the floor/cap. Returned as uint256 to avoid overflow before clamp.
   function getValueInUSDCents(uint256 wstETHAmount) external view returns (uint256 valueUSDCents);
-
-  // TODO (later step): expose staleness / decimals metadata so the verifier or
-  // monitoring can assert freshness, e.g.
-  //   function description() external view returns (string memory);
-  //   function maxStalenessSeconds() external view returns (uint256);
 }
