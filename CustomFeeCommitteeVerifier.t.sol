@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {CustomFeeCommitteeVerifier} from "../src/CustomFeeCommitteeVerifier.sol";
-import {CustomFeeConfig} from "../src/config/CustomFeeConfig.sol";
-import {IPriceAdapter} from "../src/oracle/IPriceAdapter.sol";
+import { CustomFeeCommitteeVerifier } from "../src/CustomFeeCommitteeVerifier.sol";
+import { CustomFeeConfig } from "../src/config/CustomFeeConfig.sol";
+import { IPriceAdapter } from "../src/oracle/IPriceAdapter.sol";
 
-import {CommitteeVerifier} from "@chainlink-ccip/ccvs/CommitteeVerifier.sol";
-import {BaseVerifier} from "@chainlink-ccip/ccvs/components/BaseVerifier.sol";
-import {IRouter} from "@chainlink-ccip/interfaces/IRouter.sol";
-import {Client} from "@chainlink-ccip/libraries/Client.sol";
+import { CommitteeVerifier } from "@chainlink-ccip/ccvs/CommitteeVerifier.sol";
+import { BaseVerifier } from "@chainlink-ccip/ccvs/components/BaseVerifier.sol";
+import { IRouter } from "@chainlink-ccip/interfaces/IRouter.sol";
+import { Client } from "@chainlink-ccip/libraries/Client.sol";
 
-import {MockPriceAdapter} from "./mocks/MockPriceAdapter.sol";
+import { MockPriceAdapter } from "./mocks/MockPriceAdapter.sol";
 
 /// @notice Unit tests for the bps + floor + cap fee override and its config
 ///         administration. Deploys the real verifier (dummy constructor args)
@@ -45,7 +45,7 @@ contract CustomFeeCommitteeVerifierTest is Test {
 
   function setUp() public {
     CommitteeVerifier.DynamicConfig memory dc =
-      CommitteeVerifier.DynamicConfig({feeAggregator: makeAddr("agg"), allowlistAdmin: makeAddr("allowlistAdmin")});
+      CommitteeVerifier.DynamicConfig({ feeAggregator: makeAddr("agg"), allowlistAdmin: makeAddr("allowlistAdmin") });
 
     verifier = new CustomFeeCommitteeVerifier(
       dc,
@@ -76,7 +76,7 @@ contract CustomFeeCommitteeVerifierTest is Test {
 
     // bps policy on DEST only.
     verifier.setFeeConfig(
-      DEST, CustomFeeConfig({feeBps: FEE_BPS, minFeeUSDCents: MIN_CENTS, capUSDCents: CAP_CENTS, enabled: true})
+      DEST, CustomFeeConfig({ feeBps: FEE_BPS, minFeeUSDCents: MIN_CENTS, capUSDCents: CAP_CENTS, enabled: true })
     );
 
     // Per-token adapters.
@@ -99,7 +99,7 @@ contract CustomFeeCommitteeVerifierTest is Test {
   function _msg(address token, uint256 amount) internal pure returns (Client.EVM2AnyMessage memory m) {
     m = _emptyMsg();
     m.tokenAmounts = new Client.EVMTokenAmount[](1);
-    m.tokenAmounts[0] = Client.EVMTokenAmount({token: token, amount: amount});
+    m.tokenAmounts[0] = Client.EVMTokenAmount({ token: token, amount: amount });
   }
 
   function _msg2(address t0, uint256 a0, address t1, uint256 a1)
@@ -109,8 +109,8 @@ contract CustomFeeCommitteeVerifierTest is Test {
   {
     m = _emptyMsg();
     m.tokenAmounts = new Client.EVMTokenAmount[](2);
-    m.tokenAmounts[0] = Client.EVMTokenAmount({token: t0, amount: a0});
-    m.tokenAmounts[1] = Client.EVMTokenAmount({token: t1, amount: a1});
+    m.tokenAmounts[0] = Client.EVMTokenAmount({ token: t0, amount: a0 });
+    m.tokenAmounts[1] = Client.EVMTokenAmount({ token: t1, amount: a1 });
   }
 
   function _fee(uint64 dest, Client.EVM2AnyMessage memory m) internal view returns (uint16 feeUSDCents) {
@@ -175,7 +175,7 @@ contract CustomFeeCommitteeVerifierTest is Test {
   function test_setFeeConfig_onlyOwner() public {
     vm.prank(stranger);
     vm.expectRevert();
-    verifier.setFeeConfig(DEST, CustomFeeConfig({feeBps: 1, minFeeUSDCents: 1, capUSDCents: 2, enabled: true}));
+    verifier.setFeeConfig(DEST, CustomFeeConfig({ feeBps: 1, minFeeUSDCents: 1, capUSDCents: 2, enabled: true }));
   }
 
   function test_setPriceAdapter_onlyOwner() public {
@@ -198,16 +198,12 @@ contract CustomFeeCommitteeVerifierTest is Test {
 
   function test_setFeeConfig_revertsWhenCapBelowFloor() public {
     vm.expectRevert(abi.encodeWithSelector(CustomFeeCommitteeVerifier.CapBelowFloor.selector, uint16(50), uint16(100)));
-    verifier.setFeeConfig(
-      DEST, CustomFeeConfig({feeBps: 5, minFeeUSDCents: 100, capUSDCents: 50, enabled: true})
-    );
+    verifier.setFeeConfig(DEST, CustomFeeConfig({ feeBps: 5, minFeeUSDCents: 100, capUSDCents: 50, enabled: true }));
   }
 
   function test_setFeeConfig_revertsWhenFeeBpsTooHigh() public {
     vm.expectRevert(abi.encodeWithSelector(CustomFeeCommitteeVerifier.FeeBpsTooHigh.selector, uint16(10_001)));
-    verifier.setFeeConfig(
-      DEST, CustomFeeConfig({feeBps: 10_001, minFeeUSDCents: 1, capUSDCents: 2, enabled: true})
-    );
+    verifier.setFeeConfig(DEST, CustomFeeConfig({ feeBps: 10_001, minFeeUSDCents: 1, capUSDCents: 2, enabled: true }));
   }
 
   function test_setPriceAdapter_revertsOnZeroToken() public {

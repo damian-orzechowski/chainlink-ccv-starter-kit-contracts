@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-import {IAggregatorV3} from "../../src/oracle/IAggregatorV3.sol";
+import { IAggregatorV3 } from "../../src/oracle/IAggregatorV3.sol";
 
 /// @notice Minimal configurable Chainlink aggregator mock for unit tests.
 contract MockAggregatorV3 is IAggregatorV3 {

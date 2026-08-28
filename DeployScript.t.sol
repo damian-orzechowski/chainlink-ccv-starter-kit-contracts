@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {DeployCustomFeeCommitteeVerifier} from "../script/DeployCustomFeeCommitteeVerifier.s.sol";
-import {CustomFeeCommitteeVerifier} from "../src/CustomFeeCommitteeVerifier.sol";
-import {CustomFeeConfig} from "../src/config/CustomFeeConfig.sol";
-import {IPriceAdapter} from "../src/oracle/IPriceAdapter.sol";
+import { DeployCustomFeeCommitteeVerifier } from "../script/DeployCustomFeeCommitteeVerifier.s.sol";
+import { CustomFeeCommitteeVerifier } from "../src/CustomFeeCommitteeVerifier.sol";
+import { CustomFeeConfig } from "../src/config/CustomFeeConfig.sol";
+import { IPriceAdapter } from "../src/oracle/IPriceAdapter.sol";
 
-import {Client} from "@chainlink-ccip/libraries/Client.sol";
+import { Client } from "@chainlink-ccip/libraries/Client.sol";
 
-import {MockPriceAdapter} from "./mocks/MockPriceAdapter.sol";
-import {MockVersionedVerifierResolver} from "./mocks/MockVersionedVerifierResolver.sol";
+import { MockPriceAdapter } from "./mocks/MockPriceAdapter.sol";
+import { MockVersionedVerifierResolver } from "./mocks/MockVersionedVerifierResolver.sol";
 
 /// @dev Exposes the script's internal load/deploy so tests can drive them with
 ///      an in-memory Config (no file, env, or broadcast required).
@@ -70,8 +70,7 @@ contract DeployScriptTest is Test {
     MockPriceAdapter adapter = new MockPriceAdapter(100_000); // $1000 / token
     MockVersionedVerifierResolver resolver = new MockVersionedVerifierResolver();
 
-    CustomFeeCommitteeVerifier verifier =
-      harness.deployFor(_buildConfig(token, address(adapter), address(resolver)));
+    CustomFeeCommitteeVerifier verifier = harness.deployFor(_buildConfig(token, address(adapter), address(resolver)));
 
     _assertConfigured(verifier, token, address(adapter));
     _assertGetFee(verifier, token);
@@ -105,7 +104,7 @@ contract DeployScriptTest is Test {
     });
 
     cfg.adapters = new DeployCustomFeeCommitteeVerifier.PriceAdapterInput[](1);
-    cfg.adapters[0] = DeployCustomFeeCommitteeVerifier.PriceAdapterInput({adapter: adapter, token: token});
+    cfg.adapters[0] = DeployCustomFeeCommitteeVerifier.PriceAdapterInput({ adapter: adapter, token: token });
 
     address[] memory signers = new address[](2);
     signers[0] = makeAddr("signer1");
@@ -116,7 +115,9 @@ contract DeployScriptTest is Test {
     }
     cfg.sigs = new DeployCustomFeeCommitteeVerifier.SignatureConfigInput[](1);
     cfg.sigs[0] =
-      DeployCustomFeeCommitteeVerifier.SignatureConfigInput({signers: signers, sourceChainSelector: SRC, threshold: 2});
+      DeployCustomFeeCommitteeVerifier.SignatureConfigInput({
+      signers: signers, sourceChainSelector: SRC, threshold: 2
+    });
   }
 
   function _assertConfigured(CustomFeeCommitteeVerifier verifier, address token, address adapter) internal view {
@@ -134,7 +135,7 @@ contract DeployScriptTest is Test {
     // 1 token == $1000 == 100_000 cents; * 5 / 10_000 = 50; base gas/payload passthrough.
     Client.EVM2AnyMessage memory m;
     m.tokenAmounts = new Client.EVMTokenAmount[](1);
-    m.tokenAmounts[0] = Client.EVMTokenAmount({token: token, amount: 1e18});
+    m.tokenAmounts[0] = Client.EVMTokenAmount({ token: token, amount: 1e18 });
     (uint16 fee, uint32 gas, uint32 payload) = verifier.getFee(DEST, m, "", bytes4(0));
     assertEq(fee, 50, "fee");
     assertEq(gas, 90_000, "gas");

@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {CustomFeeCommitteeVerifier} from "../../src/CustomFeeCommitteeVerifier.sol";
-import {CustomFeeConfig} from "../../src/config/CustomFeeConfig.sol";
-import {IPriceAdapter} from "../../src/oracle/IPriceAdapter.sol";
-import {WstETHUSDPriceAdapter} from "../../src/oracle/WstETHUSDPriceAdapter.sol";
-import {PriceFeedLib} from "../../src/oracle/PriceFeedLib.sol";
+import { CustomFeeCommitteeVerifier } from "../../src/CustomFeeCommitteeVerifier.sol";
+import { CustomFeeConfig } from "../../src/config/CustomFeeConfig.sol";
+import { IPriceAdapter } from "../../src/oracle/IPriceAdapter.sol";
+import { WstETHUSDPriceAdapter } from "../../src/oracle/WstETHUSDPriceAdapter.sol";
+import { PriceFeedLib } from "../../src/oracle/PriceFeedLib.sol";
 
-import {CommitteeVerifier} from "@chainlink-ccip/ccvs/CommitteeVerifier.sol";
-import {BaseVerifier} from "@chainlink-ccip/ccvs/components/BaseVerifier.sol";
-import {IRouter} from "@chainlink-ccip/interfaces/IRouter.sol";
-import {Client} from "@chainlink-ccip/libraries/Client.sol";
+import { CommitteeVerifier } from "@chainlink-ccip/ccvs/CommitteeVerifier.sol";
+import { BaseVerifier } from "@chainlink-ccip/ccvs/components/BaseVerifier.sol";
+import { IRouter } from "@chainlink-ccip/interfaces/IRouter.sol";
+import { Client } from "@chainlink-ccip/libraries/Client.sol";
 
-import {MockAggregatorV3} from "../mocks/MockAggregatorV3.sol";
-import {MockWstETH} from "../mocks/MockWstETH.sol";
+import { MockAggregatorV3 } from "../mocks/MockAggregatorV3.sol";
+import { MockWstETH } from "../mocks/MockWstETH.sol";
 
 /// @notice Integration tests: the REAL wstETH price adapter registered behind
 ///         the verifier, exercised end-to-end through getFee. This crosses the
@@ -54,7 +54,7 @@ contract CustomFeeVerifierIntegrationTest is Test {
     vm.warp(START_TS);
 
     CommitteeVerifier.DynamicConfig memory dc =
-      CommitteeVerifier.DynamicConfig({feeAggregator: makeAddr("agg"), allowlistAdmin: makeAddr("allowlistAdmin")});
+      CommitteeVerifier.DynamicConfig({ feeAggregator: makeAddr("agg"), allowlistAdmin: makeAddr("allowlistAdmin") });
     verifier = new CustomFeeCommitteeVerifier(dc, new string[](0), makeAddr("rmn"), bytes4(uint32(1)));
 
     BaseVerifier.RemoteChainConfigArgs[] memory args = new BaseVerifier.RemoteChainConfigArgs[](1);
@@ -68,7 +68,7 @@ contract CustomFeeVerifierIntegrationTest is Test {
     });
     verifier.applyRemoteChainConfigUpdates(args);
     verifier.setFeeConfig(
-      DEST, CustomFeeConfig({feeBps: FEE_BPS, minFeeUSDCents: MIN_CENTS, capUSDCents: CAP_CENTS, enabled: true})
+      DEST, CustomFeeConfig({ feeBps: FEE_BPS, minFeeUSDCents: MIN_CENTS, capUSDCents: CAP_CENTS, enabled: true })
     );
 
     // Real adapters backed by mock oracles.
@@ -99,7 +99,7 @@ contract CustomFeeVerifierIntegrationTest is Test {
   function _msg1(address token, uint256 amount) internal pure returns (Client.EVM2AnyMessage memory m) {
     m = _emptyMsg();
     m.tokenAmounts = new Client.EVMTokenAmount[](1);
-    m.tokenAmounts[0] = Client.EVMTokenAmount({token: token, amount: amount});
+    m.tokenAmounts[0] = Client.EVMTokenAmount({ token: token, amount: amount });
   }
 
   function _msg2(address t0, uint256 a0, address t1, uint256 a1)
@@ -109,8 +109,8 @@ contract CustomFeeVerifierIntegrationTest is Test {
   {
     m = _emptyMsg();
     m.tokenAmounts = new Client.EVMTokenAmount[](2);
-    m.tokenAmounts[0] = Client.EVMTokenAmount({token: t0, amount: a0});
-    m.tokenAmounts[1] = Client.EVMTokenAmount({token: t1, amount: a1});
+    m.tokenAmounts[0] = Client.EVMTokenAmount({ token: t0, amount: a0 });
+    m.tokenAmounts[1] = Client.EVMTokenAmount({ token: t1, amount: a1 });
   }
 
   function _fee(Client.EVM2AnyMessage memory m) internal view returns (uint16 f) {

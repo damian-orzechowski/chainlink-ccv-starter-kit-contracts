@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-import {IPriceAdapter} from "../../src/oracle/IPriceAdapter.sol";
+import { IPriceAdapter } from "../../src/oracle/IPriceAdapter.sol";
 
 /// @notice Deterministic linear price adapter for unit tests.
 /// @dev    value = amount * usdCentsPerToken / 1e18, so `usdCentsPerToken` is the

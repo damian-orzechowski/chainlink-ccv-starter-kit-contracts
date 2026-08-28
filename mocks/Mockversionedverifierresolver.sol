@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-import {VersionedVerifierResolver} from "@chainlink-ccip/ccvs/VersionedVerifierResolver.sol";
+import { VersionedVerifierResolver } from "@chainlink-ccip/ccvs/VersionedVerifierResolver.sol";
 
 /// @notice Minimal resolver stand-in for the deploy-script test. Records what the
 ///         script registers, using the SAME upstream struct types so the call
