@@ -47,7 +47,7 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
   error ZeroToken();
   error LengthMismatch();
   error MinFeeMustBeNonZero();
-
+  error AdapterTokenMismatch(address token, address adapterToken);
   /// @notice Emitted when the bps fee policy for a destination chain is set.
   event CustomFeeConfigSet(uint64 indexed destChainSelector, CustomFeeConfig config);
 
@@ -149,6 +149,11 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
 
   function _setPriceAdapter(address token, IPriceAdapter adapter) internal {
     if (token == address(0)) revert ZeroToken();
+    // When registering (not clearing), the adapter must price exactly this token.
+    if (address(adapter) != address(0)) {
+      address adapterToken = adapter.token();
+      if (adapterToken != token) revert AdapterTokenMismatch(token, adapterToken);
+    }
     s_priceAdapter[token] = adapter;
     emit PriceAdapterSet(token, address(adapter));
   }

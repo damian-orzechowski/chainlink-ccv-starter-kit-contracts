@@ -13,6 +13,12 @@ pragma solidity ^0.8.26;
 ///         is responsible for its own decimals normalization, staleness checks
 ///         and rounding (round down for a fee quote).
 interface IPriceAdapter {
+  /// @notice The token this adapter prices.
+  function token() external view returns (address);
+
+  /// @notice The decimals the adapter's math assumes for `token()`.
+  function tokenDecimals() external view returns (uint8);
+
   /// @notice USD-cents value of `amount` of the adapter's token.
   /// @param  amount token amount in the token's own smallest unit (the raw
   ///         on-chain integer, e.g. 1e18 for an 18-decimal token).

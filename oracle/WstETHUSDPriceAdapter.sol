@@ -8,6 +8,8 @@ import { PriceFeedLib } from "./PriceFeedLib.sol";
 interface IWstETH {
   /// @notice stETH per 1 wstETH, scaled by 1e18 (Lido's own on-chain rate).
   function stEthPerToken() external view returns (uint256);
+  /// @notice ERC20 decimals of wstETH (expected 18).
+  function decimals() external view returns (uint8);
 }
 
 /// @title WstETHUSDPriceAdapter (mainnet)
@@ -25,8 +27,11 @@ contract WstETHUSDPriceAdapter is IPriceAdapter {
   using PriceFeedLib for IAggregatorV3;
 
   error ZeroAddress();
+  /// @notice The bound token's decimals don't match the adapter's assumption.
+  error UnexpectedTokenDecimals(uint8 expected, uint8 actual);
 
   uint256 private constant WAD = 1e18; // wstETH & stETH decimals
+  uint8 private constant TOKEN_DECIMALS = 18; // wstETH decimals
   uint256 private constant CENTS_PER_USD = 100;
 
   IWstETH public immutable WSTETH;
@@ -40,6 +45,9 @@ contract WstETHUSDPriceAdapter is IPriceAdapter {
   constructor(address wstETH, address usdFeed, uint256 maxStaleness) {
     if (wstETH == address(0) || usdFeed == address(0)) revert ZeroAddress();
     WSTETH = IWstETH(wstETH);
+    // The math assumes an 18-decimal token
+    uint8 dec = IWstETH(wstETH).decimals();
+    if (dec != TOKEN_DECIMALS) revert UnexpectedTokenDecimals(TOKEN_DECIMALS, dec);
     USD_FEED = IAggregatorV3(usdFeed);
     USD_FEED_DECIMALS = IAggregatorV3(usdFeed).decimals();
     MAX_STALENESS = maxStaleness;
@@ -52,5 +60,15 @@ contract WstETHUSDPriceAdapter is IPriceAdapter {
     // stETH -> USD cents: stEthWei/1e18 * usdPrice/10^dec * 100
     uint256 usdPrice = USD_FEED.readFresh(MAX_STALENESS);
     return (stEthWei * usdPrice * CENTS_PER_USD) / (WAD * (10 ** USD_FEED_DECIMALS));
+  }
+
+  /// @inheritdoc IPriceAdapter
+  function token() external view virtual returns (address) {
+    return address(WSTETH);
+  }
+
+  /// @inheritdoc IPriceAdapter
+  function tokenDecimals() external pure virtual returns (uint8) {
+    return TOKEN_DECIMALS;
   }
 }
