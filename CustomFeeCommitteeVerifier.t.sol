@@ -206,6 +206,27 @@ contract CustomFeeCommitteeVerifierTest is Test {
     verifier.setFeeConfig(DEST, CustomFeeConfig({ feeBps: 10_001, minFeeUSDCents: 1, capUSDCents: 2, enabled: true }));
   }
 
+  function test_setFeeConfig_revertsWhenEnabledWithZeroFloor() public {
+    vm.expectRevert(CustomFeeCommitteeVerifier.MinFeeMustBeNonZero.selector);
+    verifier.setFeeConfig(DEST, CustomFeeConfig({ feeBps: 5, minFeeUSDCents: 0, capUSDCents: 1000, enabled: true }));
+  }
+
+  function test_setFeeConfig_allowsZeroFloorWhenDisabled() public {
+    // Disabled lanes fall back to the inherited flat fee, so a zero floor is fine.
+    verifier.setFeeConfig(
+      DEST_FLAT, CustomFeeConfig({ feeBps: 5, minFeeUSDCents: 0, capUSDCents: 1000, enabled: false })
+    );
+    assertFalse(verifier.getFeeConfig(DEST_FLAT).enabled);
+    assertEq(verifier.getFeeConfig(DEST_FLAT).minFeeUSDCents, 0);
+  }
+
+  function test_setFeeConfig_allowsZeroBpsWithNonZeroFloor() public {
+    // feeBps == 0 with a non-zero floor is a legitimate flat-fee-via-floor lane.
+    verifier.setFeeConfig(DEST, CustomFeeConfig({ feeBps: 0, minFeeUSDCents: 10, capUSDCents: 1000, enabled: true }));
+    assertEq(verifier.getFeeConfig(DEST).feeBps, 0);
+    assertTrue(verifier.getFeeConfig(DEST).enabled);
+  }
+
   function test_setPriceAdapter_revertsOnZeroToken() public {
     vm.expectRevert(CustomFeeCommitteeVerifier.ZeroToken.selector);
     verifier.setPriceAdapter(address(0), IPriceAdapter(address(adapterA)));
