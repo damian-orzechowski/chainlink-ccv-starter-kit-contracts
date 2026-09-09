@@ -82,8 +82,8 @@ contract CustomFeeCommitteeVerifierTest is Test {
     );
 
     // Per-token adapters.
-    adapterA = new MockPriceAdapter(100_000); // $1000 / token
-    adapterB = new MockPriceAdapter(50_000); // $500 / token
+    adapterA = new MockPriceAdapter(tokenA, 100_000); // $1000 / token
+    adapterB = new MockPriceAdapter(tokenB, 50_000); // $500 / token
     verifier.setPriceAdapter(tokenA, IPriceAdapter(address(adapterA)));
     verifier.setPriceAdapter(tokenB, IPriceAdapter(address(adapterB)));
   }
@@ -274,6 +274,24 @@ contract CustomFeeCommitteeVerifierTest is Test {
     IPriceAdapter[] memory adapters = new IPriceAdapter[](1);
     vm.expectRevert(CustomFeeCommitteeVerifier.LengthMismatch.selector);
     verifier.setPriceAdapters(tokens, adapters);
+  }
+
+  function test_setPriceAdapter_revertsOnTokenMismatch() public {
+    // adapterA prices tokenA; registering it under tokenB must revert.
+    vm.expectRevert(abi.encodeWithSelector(CustomFeeCommitteeVerifier.AdapterTokenMismatch.selector, tokenB, tokenA));
+    verifier.setPriceAdapter(tokenB, IPriceAdapter(address(adapterA)));
+  }
+
+  function test_setPriceAdapter_revertsOnNonContractAdapter() public {
+    // An EOA "adapter" has no code, so adapter.token() reverts and registration fails.
+    vm.expectRevert();
+    verifier.setPriceAdapter(tokenA, IPriceAdapter(makeAddr("notAnAdapter")));
+  }
+
+  function test_setPriceAdapter_allowsClearing() public {
+    // Clearing (adapter == 0) skips the token() check.
+    verifier.setPriceAdapter(tokenA, IPriceAdapter(address(0)));
+    assertEq(address(verifier.getPriceAdapter(tokenA)), address(0));
   }
 
   // --- getters ---------------------------------------------------------------

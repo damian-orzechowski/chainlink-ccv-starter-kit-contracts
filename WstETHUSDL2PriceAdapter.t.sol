@@ -7,9 +7,11 @@ import { WstETHUSDL2PriceAdapter } from "../src/oracle/WstETHUSDL2PriceAdapter.s
 import { PriceFeedLib } from "../src/oracle/PriceFeedLib.sol";
 
 import { MockAggregatorV3 } from "./mocks/MockAggregatorV3.sol";
+import { MockWstETH } from "./mocks/MockWstETH.sol";
 
 /// @notice Unit tests for the L2 wstETH -> USD-cents adapter (two-feed composition).
 contract WstETHUSDL2PriceAdapterTest is Test {
+  MockWstETH internal wstETH; // 18-decimal token
   MockAggregatorV3 internal rateFeed; // wstETH/stETH, 18 decimals
   MockAggregatorV3 internal usdFeed; // stETH/USD, 8 decimals
   WstETHUSDL2PriceAdapter internal adapter;
@@ -21,9 +23,23 @@ contract WstETHUSDL2PriceAdapterTest is Test {
 
   function setUp() public {
     vm.warp(1_000_000);
+    wstETH = new MockWstETH(1e18);
     rateFeed = new MockAggregatorV3(18, RATE, block.timestamp);
     usdFeed = new MockAggregatorV3(8, PRICE, block.timestamp);
-    adapter = new WstETHUSDL2PriceAdapter(address(rateFeed), address(usdFeed), RATE_MAX, USD_MAX);
+    adapter = new WstETHUSDL2PriceAdapter(address(wstETH), address(rateFeed), address(usdFeed), RATE_MAX, USD_MAX);
+  }
+
+  function test_metadata() public view {
+    assertEq(adapter.token(), address(wstETH), "token()");
+    assertEq(adapter.tokenDecimals(), 18, "tokenDecimals()");
+  }
+
+  function test_ctor_reverts_onWrongTokenDecimals() public {
+    wstETH.setDecimals(6);
+    vm.expectRevert(
+      abi.encodeWithSelector(WstETHUSDL2PriceAdapter.UnexpectedTokenDecimals.selector, uint8(18), uint8(6))
+    );
+    new WstETHUSDL2PriceAdapter(address(wstETH), address(rateFeed), address(usdFeed), RATE_MAX, USD_MAX);
   }
 
   function test_value_oneToken() public view {
@@ -59,6 +75,6 @@ contract WstETHUSDL2PriceAdapterTest is Test {
 
   function test_ctor_reverts_onZeroAddress() public {
     vm.expectRevert(WstETHUSDL2PriceAdapter.ZeroAddress.selector);
-    new WstETHUSDL2PriceAdapter(address(0), address(usdFeed), RATE_MAX, USD_MAX);
+    new WstETHUSDL2PriceAdapter(address(0), address(rateFeed), address(usdFeed), RATE_MAX, USD_MAX);
   }
 }

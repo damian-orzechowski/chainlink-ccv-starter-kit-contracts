@@ -61,4 +61,15 @@ contract WstETHUSDPriceAdapterTest is Test {
     vm.expectRevert(WstETHUSDPriceAdapter.ZeroAddress.selector);
     new WstETHUSDPriceAdapter(address(wstETH), address(0), MAX_STALENESS);
   }
+
+  function test_metadata() public view {
+    assertEq(adapter.token(), address(wstETH), "token()");
+    assertEq(adapter.tokenDecimals(), 18, "tokenDecimals()");
+  }
+
+  function test_ctor_reverts_onWrongTokenDecimals() public {
+    wstETH.setDecimals(6);
+    vm.expectRevert(abi.encodeWithSelector(WstETHUSDPriceAdapter.UnexpectedTokenDecimals.selector, uint8(18), uint8(6)));
+    new WstETHUSDPriceAdapter(address(wstETH), address(feed), MAX_STALENESS);
+  }
 }

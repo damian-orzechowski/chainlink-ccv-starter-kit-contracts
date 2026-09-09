@@ -8,13 +8,15 @@ import { IPriceAdapter } from "../../src/oracle/IPriceAdapter.sol";
 ///         USD-cent value of ONE whole (1e18) token. Set `shouldRevert` to
 ///         exercise adapter-failure handling.
 contract MockPriceAdapter is IPriceAdapter {
+  address internal immutable TOKEN;
   uint256 public usdCentsPerToken;
   bool public shouldRevert;
 
   error MockAdapterReverted();
 
-  constructor(uint256 _usdCentsPerToken) {
-    usdCentsPerToken = _usdCentsPerToken;
+  constructor(address token_, uint256 usdCentsPerToken_) {
+    TOKEN = token_;
+    usdCentsPerToken = usdCentsPerToken_;
   }
 
   function setUsdCentsPerToken(uint256 v) external {
@@ -23,6 +25,14 @@ contract MockPriceAdapter is IPriceAdapter {
 
   function setShouldRevert(bool v) external {
     shouldRevert = v;
+  }
+
+  function token() external view returns (address) {
+    return TOKEN;
+  }
+
+  function tokenDecimals() external pure returns (uint8) {
+    return 18;
   }
 
   function getValueInUSDCents(uint256 amount) external view returns (uint256) {

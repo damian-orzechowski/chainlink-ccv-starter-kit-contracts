@@ -67,7 +67,7 @@ contract DeployScriptTest is Test {
 
   function test_deploy_wiresVerifierConfigAndResolver() public {
     address token = makeAddr("wstETHToken");
-    MockPriceAdapter adapter = new MockPriceAdapter(100_000); // $1000 / token
+    MockPriceAdapter adapter = new MockPriceAdapter(token, 100_000); // $1000 / token
     MockVersionedVerifierResolver resolver = new MockVersionedVerifierResolver();
 
     CustomFeeCommitteeVerifier verifier = harness.deployFor(_buildConfig(token, address(adapter), address(resolver)));

@@ -68,7 +68,7 @@ contract AccountingReconstructionTest is Test {
     wstETH = new MockWstETH(1.2e18);
     feed = new MockAggregatorV3(8, 4000e8, block.timestamp);
     adapter1 = new WstETHUSDPriceAdapter(address(wstETH), address(feed), MAX_STALENESS);
-    adapter2 = new MockPriceAdapter(50_000);
+    adapter2 = new MockPriceAdapter(token2, 50_000);
     token1 = address(wstETH);
 
     verifier.setPriceAdapter(token1, IPriceAdapter(address(adapter1)));
