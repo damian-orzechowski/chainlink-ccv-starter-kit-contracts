@@ -84,6 +84,9 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
     // The inherited base config always supplies gasForVerification /
     // payloadSizeBytes, and the flat feeUSDCents used as the fallback.
     RemoteChainConfig storage baseCfg = _getRemoteChainConfig(destChainSelector);
+
+    if (address(baseCfg.router) == address(0)) revert RemoteChainNotSupported(destChainSelector);
+
     CustomFeeConfig storage cfg = s_feeConfig[destChainSelector];
 
     // No bps config -> stock flat-fee behavior.
@@ -120,6 +123,9 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
     if (config.enabled && config.minFeeUSDCents == 0) revert MinFeeMustBeNonZero();
     if (config.feeBps > 10_000) revert FeeBpsTooHigh(config.feeBps);
     if (config.capUSDCents < config.minFeeUSDCents) revert CapBelowFloor(config.capUSDCents, config.minFeeUSDCents);
+    if (config.enabled && address(_getRemoteChainConfig(destChainSelector).router) == address(0)) {
+      revert RemoteChainNotSupported(destChainSelector);
+    }
     s_feeConfig[destChainSelector] = config;
     emit CustomFeeConfigSet(destChainSelector, config);
   }
