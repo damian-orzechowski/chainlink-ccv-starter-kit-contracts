@@ -45,6 +45,7 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
   error FeeBpsTooHigh(uint16 feeBps);
   error ZeroToken();
   error LengthMismatch();
+  error MinFeeMustBeNonZero();
 
   /// @notice Emitted when the bps fee policy for a destination chain is set.
   event CustomFeeConfigSet(uint64 indexed destChainSelector, CustomFeeConfig config);
@@ -116,6 +117,7 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
 
   /// @notice Set (or update) the bps fee policy for a destination chain.
   function setFeeConfig(uint64 destChainSelector, CustomFeeConfig calldata config) external onlyOwner {
+    if (config.enabled && config.minFeeUSDCents == 0) revert MinFeeMustBeNonZero();
     if (config.feeBps > 10_000) revert FeeBpsTooHigh(config.feeBps);
     if (config.capUSDCents < config.minFeeUSDCents) revert CapBelowFloor(config.capUSDCents, config.minFeeUSDCents);
     s_feeConfig[destChainSelector] = config;
