@@ -5,6 +5,7 @@ import { CommitteeVerifier } from "@chainlink-ccip/ccvs/CommitteeVerifier.sol";
 import { BaseVerifier } from "@chainlink-ccip/ccvs/components/BaseVerifier.sol";
 import { ICrossChainVerifierV1 } from "@chainlink-ccip/interfaces/ICrossChainVerifierV1.sol";
 import { Client } from "@chainlink-ccip/libraries/Client.sol";
+import { FinalityCodec } from "@chainlink-ccip/libraries/FinalityCodec.sol";
 
 import { CustomFeeConfig } from "./config/CustomFeeConfig.sol";
 import { IPriceAdapter } from "./oracle/IPriceAdapter.sol";
@@ -86,6 +87,8 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
     RemoteChainConfig storage baseCfg = _getRemoteChainConfig(destChainSelector);
 
     if (address(baseCfg.router) == address(0)) revert RemoteChainNotSupported(destChainSelector);
+
+    FinalityCodec._ensureRequestedFinalityAllowed(requestedFinality, getAllowedFinalityConfig());
 
     CustomFeeConfig storage cfg = s_feeConfig[destChainSelector];
 
