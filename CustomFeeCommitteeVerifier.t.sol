@@ -11,6 +11,7 @@ import { CommitteeVerifier } from "@chainlink-ccip/ccvs/CommitteeVerifier.sol";
 import { BaseVerifier } from "@chainlink-ccip/ccvs/components/BaseVerifier.sol";
 import { IRouter } from "@chainlink-ccip/interfaces/IRouter.sol";
 import { Client } from "@chainlink-ccip/libraries/Client.sol";
+import { FinalityCodec } from "@chainlink-ccip/libraries/FinalityCodec.sol";
 
 import { MockPriceAdapter } from "./mocks/MockPriceAdapter.sol";
 
@@ -225,6 +226,21 @@ contract CustomFeeCommitteeVerifierTest is Test {
       UNCONFIGURED, CustomFeeConfig({ feeBps: 5, minFeeUSDCents: 10, capUSDCents: 1000, enabled: false })
     );
     assertFalse(verifier.getFeeConfig(UNCONFIGURED).enabled);
+  }
+
+  function test_getFee_revertsForDisallowedFinality() public {
+    verifier.setAllowedFinalityConfig(bytes4(uint32(100))); // allow block depth >= 100
+    vm.expectRevert(
+      abi.encodeWithSelector(FinalityCodec.InvalidRequestedFinality.selector, bytes4(uint32(50)), bytes4(uint32(100)))
+    );
+    verifier.getFee(DEST, _msg(tokenA, 1e18), "", bytes4(uint32(50))); // depth 50 < 100 -> disallowed
+  }
+
+  function test_getFee_allowsPermittedFinality() public {
+    verifier.setAllowedFinalityConfig(bytes4(uint32(100)));
+    // depth 150 >= 100 is allowed; getFee proceeds and returns the in-range bps fee.
+    (uint16 fee,,) = verifier.getFee(DEST, _msg(tokenA, 1e18), "", bytes4(uint32(150)));
+    assertEq(fee, 50);
   }
 
   function test_setFeeConfig_revertsWhenEnabledWithZeroFloor() public {
