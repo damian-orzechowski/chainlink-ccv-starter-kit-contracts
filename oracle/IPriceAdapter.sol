@@ -2,21 +2,21 @@
 pragma solidity ^0.8.26;
 
 /// @title IPriceAdapter
-/// @notice Prices an amount of wstETH (wei) in USD cents for use inside
-///         `getFee` (a `view` context). Isolated behind an interface so the
-///         mainnet and L2 sourcing strategies (scoping doc Section 4) can be
-///         swapped per destination chain without touching the verifier.
-/// @dev    Composition of rates (scoping doc Section 4):
-///           value_USD = amount_wstETH * (stETH per wstETH) * (stETH -> USD)
-///         Mainnet: read the rate directly from the wstETH token contract
-///                  (stEthPerToken / getStETHByWstETH) + a Chainlink
-///                  stETH/USD (or ETH/USD) feed for the second hop.
-///         L2:      read the Chainlink wstETH/ETH (or wstETH/stETH) exchange-rate
-///                  feed, then multiply by stETH/USD or ETH/USD.
+/// @notice Values an amount of ONE token in USD cents, for use inside `getFee`
+///         (a `view` context). Each adapter is bound to a single token — it
+///         knows that token's decimals and the oracle route to USD — so the
+///         verifier registers one adapter per token and can price messages that
+///         carry multiple, differently-denominated tokens. The interface is
+///         token-agnostic; the concrete adapter chooses the asset and feeds.
+/// @dev    The unit contract is strict: every adapter MUST return USD **cents**
+///         so the verifier can sum results across different tokens. Each adapter
+///         is responsible for its own decimals normalization, staleness checks
+///         and rounding (round down for a fee quote).
 interface IPriceAdapter {
-  /// @notice Value of `wstETHAmount` (in wei) expressed in USD cents.
-  /// @param  wstETHAmount amount of wstETH, in wei (1e18 = 1 wstETH).
-  /// @return valueUSDCents value in USD cents. NOT clamped — the caller applies
+  /// @notice USD-cents value of `amount` of the adapter's token.
+  /// @param  amount token amount in the token's own smallest unit (the raw
+  ///         on-chain integer, e.g. 1e18 for an 18-decimal token).
+  /// @return valueUSDCents value in USD cents. NOT clamped — the verifier applies
   ///         the floor/cap. Returned as uint256 to avoid overflow before clamp.
-  function getValueInUSDCents(uint256 wstETHAmount) external view returns (uint256 valueUSDCents);
+  function getValueInUSDCents(uint256 amount) external view returns (uint256 valueUSDCents);
 }
