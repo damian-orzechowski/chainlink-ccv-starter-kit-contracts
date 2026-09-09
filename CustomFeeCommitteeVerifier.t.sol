@@ -32,6 +32,7 @@ contract CustomFeeCommitteeVerifierTest is Test {
   // Destination selectors
   uint64 internal constant DEST = 1; // bps fee enabled
   uint64 internal constant DEST_FLAT = 2; // only base config, bps disabled
+  uint64 internal constant UNCONFIGURED = 999; // never given a base config (no router)
 
   // Base (inherited) RemoteChainConfig values
   uint16 internal constant FLAT_FEE = 25; // cents
@@ -57,7 +58,7 @@ contract CustomFeeCommitteeVerifierTest is Test {
     // Configure inherited base config for both destinations (gasForVerification must be != 0).
     BaseVerifier.RemoteChainConfigArgs[] memory args = new BaseVerifier.RemoteChainConfigArgs[](2);
     args[0] = BaseVerifier.RemoteChainConfigArgs({
-      router: IRouter(address(0)),
+      router: IRouter(makeAddr("router")),
       remoteChainSelector: DEST,
       allowlistEnabled: false,
       feeUSDCents: FLAT_FEE,
@@ -65,7 +66,7 @@ contract CustomFeeCommitteeVerifierTest is Test {
       payloadSizeBytes: PAYLOAD
     });
     args[1] = BaseVerifier.RemoteChainConfigArgs({
-      router: IRouter(address(0)),
+      router: IRouter(makeAddr("router")),
       remoteChainSelector: DEST_FLAT,
       allowlistEnabled: false,
       feeUSDCents: FLAT_FEE,
@@ -204,6 +205,26 @@ contract CustomFeeCommitteeVerifierTest is Test {
   function test_setFeeConfig_revertsWhenFeeBpsTooHigh() public {
     vm.expectRevert(abi.encodeWithSelector(CustomFeeCommitteeVerifier.FeeBpsTooHigh.selector, uint16(10_001)));
     verifier.setFeeConfig(DEST, CustomFeeConfig({ feeBps: 10_001, minFeeUSDCents: 1, capUSDCents: 2, enabled: true }));
+  }
+
+  function test_getFee_revertsForUnconfiguredChain() public {
+    vm.expectRevert(abi.encodeWithSelector(BaseVerifier.RemoteChainNotSupported.selector, UNCONFIGURED));
+    verifier.getFee(UNCONFIGURED, _msg(tokenA, 1e18), "", bytes4(0));
+  }
+
+  function test_setFeeConfig_revertsWhenEnablingUnconfiguredLane() public {
+    vm.expectRevert(abi.encodeWithSelector(BaseVerifier.RemoteChainNotSupported.selector, UNCONFIGURED));
+    verifier.setFeeConfig(
+      UNCONFIGURED, CustomFeeConfig({ feeBps: 5, minFeeUSDCents: 10, capUSDCents: 1000, enabled: true })
+    );
+  }
+
+  function test_setFeeConfig_allowsDisablingUnconfiguredLane() public {
+    // Disabling a lane never needs a base config (the check is enabled-only).
+    verifier.setFeeConfig(
+      UNCONFIGURED, CustomFeeConfig({ feeBps: 5, minFeeUSDCents: 10, capUSDCents: 1000, enabled: false })
+    );
+    assertFalse(verifier.getFeeConfig(UNCONFIGURED).enabled);
   }
 
   function test_setFeeConfig_revertsWhenEnabledWithZeroFloor() public {

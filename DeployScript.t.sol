@@ -100,7 +100,7 @@ contract DeployScriptTest is Test {
       gasForVerification: 90_000,
       minFeeUSDCents: 10,
       payloadSizeBytes: 256,
-      router: address(0)
+      router: makeAddr("router")
     });
 
     cfg.adapters = new DeployCustomFeeCommitteeVerifier.PriceAdapterInput[](1);

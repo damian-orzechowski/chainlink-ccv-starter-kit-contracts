@@ -59,7 +59,7 @@ contract CustomFeeVerifierIntegrationTest is Test {
 
     BaseVerifier.RemoteChainConfigArgs[] memory args = new BaseVerifier.RemoteChainConfigArgs[](1);
     args[0] = BaseVerifier.RemoteChainConfigArgs({
-      router: IRouter(address(0)),
+      router: IRouter(makeAddr("router")),
       remoteChainSelector: DEST,
       allowlistEnabled: false,
       feeUSDCents: FLAT_FEE,

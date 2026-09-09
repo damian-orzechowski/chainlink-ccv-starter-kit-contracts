@@ -78,7 +78,7 @@ contract AccountingReconstructionTest is Test {
   function _setBase(uint64 dest, uint16 flatFee) internal {
     BaseVerifier.RemoteChainConfigArgs[] memory a = new BaseVerifier.RemoteChainConfigArgs[](1);
     a[0] = BaseVerifier.RemoteChainConfigArgs({
-      router: IRouter(address(0)),
+      router: IRouter(makeAddr("router")),
       remoteChainSelector: dest,
       allowlistEnabled: false,
       feeUSDCents: flatFee,
