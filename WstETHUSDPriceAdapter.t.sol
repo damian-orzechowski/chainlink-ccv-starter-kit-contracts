@@ -72,4 +72,29 @@ contract WstETHUSDPriceAdapterTest is Test {
     vm.expectRevert(abi.encodeWithSelector(WstETHUSDPriceAdapter.UnexpectedTokenDecimals.selector, uint8(18), uint8(6)));
     new WstETHUSDPriceAdapter(address(wstETH), address(feed), MAX_STALENESS);
   }
+
+  function test_ctor_reverts_onZeroStaleness() public {
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PriceFeedLib.InvalidMaxStaleness.selector, uint256(0), PriceFeedLib.STALENESS_MIN, PriceFeedLib.STALENESS_MAX
+      )
+    );
+    new WstETHUSDPriceAdapter(address(wstETH), address(feed), 0);
+  }
+
+  function test_ctor_reverts_onHugeStaleness() public {
+    uint256 tooBig = PriceFeedLib.STALENESS_MAX + 1;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PriceFeedLib.InvalidMaxStaleness.selector, tooBig, PriceFeedLib.STALENESS_MIN, PriceFeedLib.STALENESS_MAX
+      )
+    );
+    new WstETHUSDPriceAdapter(address(wstETH), address(feed), tooBig);
+  }
+
+  function test_ctor_acceptsBoundaryStaleness() public {
+    // Both inclusive bounds are accepted (no revert).
+    new WstETHUSDPriceAdapter(address(wstETH), address(feed), PriceFeedLib.STALENESS_MIN);
+    new WstETHUSDPriceAdapter(address(wstETH), address(feed), PriceFeedLib.STALENESS_MAX);
+  }
 }

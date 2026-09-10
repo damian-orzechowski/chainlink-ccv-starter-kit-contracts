@@ -77,4 +77,32 @@ contract WstETHUSDL2PriceAdapterTest is Test {
     vm.expectRevert(WstETHUSDL2PriceAdapter.ZeroAddress.selector);
     new WstETHUSDL2PriceAdapter(address(0), address(rateFeed), address(usdFeed), RATE_MAX, USD_MAX);
   }
+
+  function test_ctor_reverts_onZeroRateStaleness() public {
+    // rate staleness is validated first, so a zero rate reverts even with a valid usd.
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PriceFeedLib.InvalidMaxStaleness.selector, uint256(0), PriceFeedLib.STALENESS_MIN, PriceFeedLib.STALENESS_MAX
+      )
+    );
+    new WstETHUSDL2PriceAdapter(address(wstETH), address(rateFeed), address(usdFeed), 0, USD_MAX);
+  }
+
+  function test_ctor_reverts_onHugeUsdStaleness() public {
+    // rate valid, usd out of band -> reverts for the usd value.
+    uint256 tooBig = PriceFeedLib.STALENESS_MAX + 1;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PriceFeedLib.InvalidMaxStaleness.selector, tooBig, PriceFeedLib.STALENESS_MIN, PriceFeedLib.STALENESS_MAX
+      )
+    );
+    new WstETHUSDL2PriceAdapter(address(wstETH), address(rateFeed), address(usdFeed), RATE_MAX, tooBig);
+  }
+
+  function test_ctor_acceptsBoundaryStaleness() public {
+    // Inclusive bounds on both feeds are accepted.
+    new WstETHUSDL2PriceAdapter(
+      address(wstETH), address(rateFeed), address(usdFeed), PriceFeedLib.STALENESS_MIN, PriceFeedLib.STALENESS_MAX
+    );
+  }
 }
