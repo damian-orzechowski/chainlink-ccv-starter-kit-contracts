@@ -42,17 +42,27 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
   ///         token is unpriced and contributes zero value (see {getFee}).
   mapping(address token => IPriceAdapter adapter) internal s_priceAdapter;
 
+  /// @notice When true, {getFee} reverts {UnpricedToken} for any transferred
+  ///         token that has no registered adapter, instead of silently pricing
+  ///         it as zero.
+  bool internal s_requireAllTokensPriced;
+
   error CapBelowFloor(uint16 capUSDCents, uint16 minFeeUSDCents);
   error FeeBpsTooHigh(uint16 feeBps);
   error ZeroToken();
   error LengthMismatch();
   error MinFeeMustBeNonZero();
   error AdapterTokenMismatch(address token, address adapterToken);
+  error UnpricedToken(address token);
+
   /// @notice Emitted when the bps fee policy for a destination chain is set.
   event CustomFeeConfigSet(uint64 indexed destChainSelector, CustomFeeConfig config);
 
   /// @notice Emitted when a token's price adapter is set (or cleared to address(0)).
   event PriceAdapterSet(address indexed token, address indexed adapter);
+
+  /// @notice Emitted when the require-all-tokens-priced posture is updated
+  event RequireAllTokensPricedSet(bool required);
 
   /// @param dynamicConfig     inherited CommitteeVerifier dynamic config (incl. feeAggregator)
   /// @param storageLocations  inherited BaseVerifier storage locations
@@ -105,8 +115,12 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
     uint256 nTokens = message.tokenAmounts.length;
     for (uint256 i = 0; i < nTokens; ++i) {
       IPriceAdapter adapter = s_priceAdapter[message.tokenAmounts[i].token];
-      // Unpriced token -> contributes zero value
-      if (address(adapter) == address(0)) continue;
+      // Unpriced token allowed -> contributes zero value
+      // Unpriced token not allowed -> reverts
+      if (address(adapter) == address(0)) {
+        if (s_requireAllTokensPriced) revert UnpricedToken(message.tokenAmounts[i].token);
+        continue;
+      }
       valueUSDCents += adapter.getValueInUSDCents(message.tokenAmounts[i].amount);
     }
 
@@ -131,6 +145,12 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
     }
     s_feeConfig[destChainSelector] = config;
     emit CustomFeeConfigSet(destChainSelector, config);
+  }
+
+  /// @notice Set the fail-open/fail-closed posture for unpriced tokens.
+  function setRequireAllTokensPriced(bool required) external onlyOwner {
+    s_requireAllTokensPriced = required;
+    emit RequireAllTokensPricedSet(required);
   }
 
   /// @notice Register (or clear) the price adapter for a token. Pass
@@ -166,5 +186,27 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
   /// @notice Read the price adapter registered for a token (address(0) if none).
   function getPriceAdapter(address token) external view returns (IPriceAdapter) {
     return s_priceAdapter[token];
+  }
+
+  /// @notice Read the current require-all-tokens-priced posture.
+  function requireAllTokensPriced() external view returns (bool) {
+    return s_requireAllTokensPriced;
+  }
+
+  /// @notice Off-chain monitoring aid: return the transferred tokens in
+  ///         `message` that have NO registered price adapter and would
+  ///         therefore contribute zero value under the fail-open policy.
+  function getUnpricedTokens(Client.EVM2AnyMessage memory message) external view returns (address[] memory unpriced) {
+    uint256 nTokens = message.tokenAmounts.length;
+    uint256 count;
+    for (uint256 i = 0; i < nTokens; ++i) {
+      if (address(s_priceAdapter[message.tokenAmounts[i].token]) == address(0)) ++count;
+    }
+    unpriced = new address[](count);
+    uint256 j;
+    for (uint256 i = 0; i < nTokens; ++i) {
+      address token = message.tokenAmounts[i].token;
+      if (address(s_priceAdapter[token]) == address(0)) unpriced[j++] = token;
+    }
   }
 }
