@@ -113,15 +113,27 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
     // floor.
     uint256 valueUSDCents;
     uint256 nTokens = message.tokenAmounts.length;
+    bool requireAllPriced = s_requireAllTokensPriced;
     for (uint256 i = 0; i < nTokens; ++i) {
-      IPriceAdapter adapter = s_priceAdapter[message.tokenAmounts[i].token];
+      address token = message.tokenAmounts[i].token;
+      IPriceAdapter adapter = s_priceAdapter[token];
+
       // Unpriced token allowed -> contributes zero value
       // Unpriced token not allowed -> reverts
       if (address(adapter) == address(0)) {
-        if (s_requireAllTokensPriced) revert UnpricedToken(message.tokenAmounts[i].token);
-        continue;
+        if (requireAllPriced) revert UnpricedToken(token);
+        continue; // fail-open: contributes zero value
       }
-      valueUSDCents += adapter.getValueInUSDCents(message.tokenAmounts[i].amount);
+      // Broken price feeds revert or get skipped depending on the configuration
+      if (requireAllPriced) {
+        valueUSDCents += adapter.getValueInUSDCents(message.tokenAmounts[i].amount);
+      } else {
+        try adapter.getValueInUSDCents(message.tokenAmounts[i].amount) returns (uint256 v) {
+          valueUSDCents += v;
+        } catch {
+          // token contributes zero value
+        }
+      }
     }
 
     uint256 fee = (valueUSDCents * uint256(cfg.feeBps)) / 10_000; // feeBps 5 -> 0.05%
