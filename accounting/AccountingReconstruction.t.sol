@@ -123,7 +123,11 @@ contract AccountingReconstructionTest is Test {
     CustomFeeConfig memory c = verifier.getFeeConfig(dest);
     if (!c.enabled) {
       (BaseVerifier.RemoteChainConfigArgs memory rc,) = verifier.getRemoteChainConfig(dest);
-      return rc.feeUSDCents; // flat fallback
+      return rc.feeUSDCents; // flat fallback (bps policy disabled)
+    }
+    if (m.tokenAmounts.length == 0) {
+      (BaseVerifier.RemoteChainConfigArgs memory rc,) = verifier.getRemoteChainConfig(dest);
+      return rc.feeUSDCents; // data-only message -> flat fallback
     }
     uint256 value;
     for (uint256 i = 0; i < m.tokenAmounts.length; ++i) {

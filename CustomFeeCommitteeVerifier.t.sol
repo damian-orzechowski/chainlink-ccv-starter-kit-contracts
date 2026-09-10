@@ -144,9 +144,17 @@ contract CustomFeeCommitteeVerifierTest is Test {
     assertEq(_fee(DEST, _msg(tokenA, 100e18)), CAP_CENTS);
   }
 
-  function test_getFee_noTokens_returnsFloor() public view {
-    // No token transfer -> value 0 -> floor.
-    assertEq(_fee(DEST, _emptyMsg()), MIN_CENTS);
+  function test_getFee_dataOnly_returnsFlatFee() public view {
+    (uint16 fee, uint32 gas, uint32 payload) = verifier.getFee(DEST, _emptyMsg(), "", bytes4(0));
+    assertEq(fee, FLAT_FEE, "data-only -> flat fee");
+    assertEq(gas, GAS, "gas passthrough");
+    assertEq(payload, PAYLOAD, "payload passthrough");
+  }
+
+  function test_getFee_zeroValuedToken_stillFloor() public view {
+    // A message that DOES carry a token which prices to zero
+    // still clamps to the floor
+    assertEq(_fee(DEST, _msg(tokenUnpriced, 5e18)), MIN_CENTS);
   }
 
   function test_getFee_multipleTokens_sumsValues() public view {
