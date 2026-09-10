@@ -41,15 +41,30 @@ contract WstETHUSDL2PriceAdapter is IPriceAdapter {
   uint8 public immutable USD_FEED_DECIMALS;
   uint256 public immutable USD_MAX_STALENESS; // seconds
 
+  IAggregatorV3 public immutable SEQUENCER_UPTIME_FEED; // Chainlink L2 sequencer uptime feed
+  uint256 public immutable GRACE_PERIOD; // seconds to wait after sequencer recovery
+
   /// @param wstETH            the wstETH token this adapter prices (must be 18-decimal).
   /// @param rateFeed          Chainlink wstETH exchange-rate feed (intermediate per wstETH).
   /// @param usdFeed           Chainlink USD feed for the intermediate asset.
   /// @param rateMaxStaleness  max age (seconds) for the rate feed's round.
   /// @param usdMaxStaleness   max age (seconds) for the USD feed's round.
-  constructor(address wstETH, address rateFeed, address usdFeed, uint256 rateMaxStaleness, uint256 usdMaxStaleness) {
-    if (wstETH == address(0) || rateFeed == address(0) || usdFeed == address(0)) revert ZeroAddress();
+  /// @param sequencerUptimeFeed  Chainlink L2 Sequencer Uptime Feed for this L2
+  /// @param gracePeriod       seconds to wait after sequencer recovery before trusting prices
+  constructor(
+    address wstETH,
+    address rateFeed,
+    address usdFeed,
+    uint256 rateMaxStaleness,
+    uint256 usdMaxStaleness,
+    address sequencerUptimeFeed,
+    uint256 gracePeriod
+  ) {
+    if (wstETH == address(0) || rateFeed == address(0) || usdFeed == address(0) || sequencerUptimeFeed == address(0)) revert ZeroAddress();
+
     PriceFeedLib.requireValidStaleness(rateMaxStaleness);
     PriceFeedLib.requireValidStaleness(usdMaxStaleness);
+    PriceFeedLib.requireValidGracePeriod(gracePeriod);
     TOKEN = wstETH;
     // The math assumes an 18-decimal token
     uint8 dec = IERC20Decimals(wstETH).decimals();
@@ -60,10 +75,14 @@ contract WstETHUSDL2PriceAdapter is IPriceAdapter {
     USD_FEED = IAggregatorV3(usdFeed);
     USD_FEED_DECIMALS = IAggregatorV3(usdFeed).decimals();
     USD_MAX_STALENESS = usdMaxStaleness;
+    SEQUENCER_UPTIME_FEED = IAggregatorV3(sequencerUptimeFeed);
+    GRACE_PERIOD = gracePeriod;
   }
 
   /// @inheritdoc IPriceAdapter
   function getValueInUSDCents(uint256 amount) external view virtual returns (uint256) {
+    // Reject reads while the L2 sequencer is down or in its post-recovery grace period
+    PriceFeedLib.requireSequencerUp(SEQUENCER_UPTIME_FEED, GRACE_PERIOD);
     // wstETH -> intermediate (stETH/ETH) wei: amount * rate / 10^rateDecimals
     uint256 rate = RATE_FEED.readFresh(RATE_MAX_STALENESS);
     uint256 intermediateWei = (amount * rate) / (10 ** RATE_FEED_DECIMALS);

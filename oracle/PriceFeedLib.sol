@@ -22,6 +22,33 @@ library PriceFeedLib {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // L2 sequencer uptime
+  // ---------------------------------------------------------------------------
+
+  error SequencerDown();
+  error SequencerGracePeriodNotOver(uint256 timeSinceUp, uint256 gracePeriod);
+  error InvalidGracePeriod(uint256 provided, uint256 min, uint256 max);
+
+  /// @notice Sanity bounds for the post-recovery grace period.
+  uint256 internal constant GRACE_PERIOD_MIN = 1 minutes;
+  uint256 internal constant GRACE_PERIOD_MAX = 6 hours;
+
+  /// @notice Revert unless `gracePeriod` is within [GRACE_PERIOD_MIN, GRACE_PERIOD_MAX].
+  function requireValidGracePeriod(uint256 gracePeriod) internal pure {
+    if (gracePeriod < GRACE_PERIOD_MIN || gracePeriod > GRACE_PERIOD_MAX) {
+      revert InvalidGracePeriod(gracePeriod, GRACE_PERIOD_MIN, GRACE_PERIOD_MAX);
+    }
+  }
+
+  /// @notice Revert unless the L2 sequencer is up  for longer than `gracePeriod`.
+  function requireSequencerUp(IAggregatorV3 sequencerUptimeFeed, uint256 gracePeriod) internal view {
+    (, int256 answer, uint256 startedAt,,) = sequencerUptimeFeed.latestRoundData();
+    if (answer != 0 || startedAt == 0) revert SequencerDown();
+    uint256 timeSinceUp = block.timestamp - startedAt;
+    if (timeSinceUp <= gracePeriod) revert SequencerGracePeriodNotOver(timeSinceUp, gracePeriod);
+  }
+
   /// @notice Read `latestRoundData`, reverting if the answer is non-positive or
   ///         older than `maxStaleness` seconds.
   /// @return answer the feed answer as a uint256 (guaranteed > 0).
