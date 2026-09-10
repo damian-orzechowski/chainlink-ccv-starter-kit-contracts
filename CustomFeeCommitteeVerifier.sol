@@ -107,6 +107,11 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
       return (baseCfg.feeUSDCents, baseCfg.gasForVerification, baseCfg.payloadSizeBytes);
     }
 
+    // Data-only messages fall back to the inherited flat fee
+    if (message.tokenAmounts.length == 0) {
+      return (baseCfg.feeUSDCents, baseCfg.gasForVerification, baseCfg.payloadSizeBytes);
+    }
+
     // Value the transfer by pricing each token with its own adapter and summing
     // the USD-cent results. This supports multi-token and mixed-token messages.
     // A message with no (priced) token transfer has zero value and falls to the
