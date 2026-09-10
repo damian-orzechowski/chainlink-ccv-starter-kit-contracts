@@ -347,4 +347,42 @@ contract CustomFeeCommitteeVerifierTest is Test {
     vm.expectRevert();
     verifier.setRequireAllTokensPriced(true);
   }
+
+  function test_getFee_brokenFeed_degradesToFloor() public {
+    // adapterA is the only token; make its feed "stale" so the adapter reverts.
+    adapterA.setShouldRevert(true);
+    // Fail-open default: token degrades to zero value -> fee clamps to the floor,
+    // and crucially getFee does NOT revert.
+    assertEq(_fee(DEST, _msg(tokenA, 1e18)), MIN_CENTS);
+  }
+
+  function test_getFee_brokenFeed_stillPricesHealthyTokens() public {
+    // tokenA healthy ($1000 -> 100_000), tokenB's feed broken (-> 0).
+    adapterB.setShouldRevert(true);
+    // Value = 100_000 (tokenA only); 100_000 * 5 / 10_000 = 50. No revert.
+    assertEq(_fee(DEST, _msg2(tokenA, 1e18, tokenB, 1e18)), 50);
+  }
+
+  function test_getFee_allFeedsBroken_returnsFloor() public {
+    adapterA.setShouldRevert(true);
+    adapterB.setShouldRevert(true);
+    // Both degrade to zero -> value 0 -> floor. Still no revert.
+    assertEq(_fee(DEST, _msg2(tokenA, 1e18, tokenB, 1e18)), MIN_CENTS);
+  }
+
+  function test_getFee_brokenFeed_strictReverts_bubblesAdapterError() public {
+    verifier.setRequireAllTokensPriced(true);
+    adapterA.setShouldRevert(true);
+    // Fail-closed: the adapter's own revert bubbles unwrapped,
+    // rather than degrading to the floor.
+    vm.expectRevert(MockPriceAdapter.MockAdapterReverted.selector);
+    verifier.getFee(DEST, _msg(tokenA, 1e18), "", bytes4(0));
+  }
+
+  function test_getFee_healthyFeed_unaffectedByPolicy() public {
+    // Sanity: with healthy feeds, flipping the posture doesn't change the fee.
+    uint16 openFee = _fee(DEST, _msg(tokenA, 1e18));
+    verifier.setRequireAllTokensPriced(true);
+    assertEq(_fee(DEST, _msg(tokenA, 1e18)), openFee, "healthy feed: policy-agnostic");
+  }
 }

@@ -141,18 +141,35 @@ contract CustomFeeVerifierIntegrationTest is Test {
     assertEq(_fee(_msg1(token1, 1e15)), MIN_CENTS);
   }
 
-  // --- fail-closed on unhealthy oracle (contrast with unpriced->zero) ---------
+  // --- deal with unhealthy oracle (contrast with unpriced->zero) ---------
 
-  function test_integration_staleFeed_reverts() public {
+  function test_integration_staleFeed_strictReverts() public {
+    verifier.setRequireAllTokensPriced(true); // fail-closed posture
     vm.warp(block.timestamp + MAX_STALENESS + 1);
     vm.expectRevert(abi.encodeWithSelector(PriceFeedLib.StalePrice.selector, address(feed1), START_TS, MAX_STALENESS));
     verifier.getFee(DEST, _msg1(token1, 1e18), "", bytes4(0));
   }
 
-  function test_integration_nonPositiveFeed_reverts() public {
+  function test_integration_nonPositiveFeed_strictReverts() public {
+    verifier.setRequireAllTokensPriced(true); // fail-closed posture
     feed1.setAnswer(0);
     vm.expectRevert(abi.encodeWithSelector(PriceFeedLib.NonPositivePrice.selector, address(feed1), int256(0)));
     verifier.getFee(DEST, _msg1(token1, 1e18), "", bytes4(0));
+  }
+
+  function test_integration_staleFeed_defaultDegradesToFloor() public {
+    // Default fail-open: a stale real feed degrades token1 to zero value, so a
+    // single-token message clamps to the floor and getFee does NOT revert.
+    vm.warp(block.timestamp + MAX_STALENESS + 1);
+    assertEq(_fee(_msg1(token1, 1e18)), MIN_CENTS);
+  }
+
+  function test_integration_staleFeed_defaultStillPricesHealthyToken() public {
+    // token1's feed stale, token2's fresh: message still prices from token2.
+    // token2 1e18 -> 50_000; 50_000 * 5 / 10_000 = 25 cents. No revert.
+    vm.warp(block.timestamp + MAX_STALENESS + 1);
+    feed2.setUpdatedAt(block.timestamp); // refresh only token2's feed
+    assertEq(_fee(_msg2(token1, 1e18, token2, 1e18)), 25);
   }
 
   // --- decimals matrix (adapter math across feed decimals) --------------------
