@@ -303,4 +303,48 @@ contract CustomFeeCommitteeVerifierTest is Test {
     assertEq(address(verifier.getPriceAdapter(tokenA)), address(adapterA));
     assertEq(address(verifier.getPriceAdapter(tokenUnpriced)), address(0));
   }
+
+  function test_getUnpricedTokens_flagsOnlyUnregistered() public view {
+    // tokenA priced, tokenUnpriced not -> only tokenUnpriced returned.
+    address[] memory unpriced = verifier.getUnpricedTokens(_msg2(tokenA, 1e18, tokenUnpriced, 5e18));
+    assertEq(unpriced.length, 1, "one unpriced");
+    assertEq(unpriced[0], tokenUnpriced, "the unregistered token");
+  }
+
+  function test_getUnpricedTokens_emptyWhenAllPriced() public view {
+    address[] memory unpriced = verifier.getUnpricedTokens(_msg2(tokenA, 1e18, tokenB, 1e18));
+    assertEq(unpriced.length, 0, "all priced -> none flagged");
+  }
+
+  function test_getUnpricedTokens_reportsAll() public {
+    address[] memory unpriced = verifier.getUnpricedTokens(_msg2(tokenUnpriced, 1e18, makeAddr("tok2"), 1e18));
+    assertEq(unpriced.length, 2, "both unpriced");
+  }
+
+  function test_requireAllTokensPriced_defaultsFalse_failsOpen() public view {
+    // Default posture: an unregistered token still contributes zero (no revert),
+    // so tokenA(100_000) + unpriced -> 50 cents, matching legacy behavior.
+    assertFalse(verifier.requireAllTokensPriced(), "default fail-open");
+    assertEq(_fee(DEST, _msg2(tokenA, 1e18, tokenUnpriced, 5e18)), 50);
+  }
+
+  function test_requireAllTokensPriced_strict_revertsOnUnpriced() public {
+    verifier.setRequireAllTokensPriced(true);
+    assertTrue(verifier.requireAllTokensPriced(), "strict posture set");
+    // Now an unregistered token blocks the quote instead of pricing to zero.
+    vm.expectRevert(abi.encodeWithSelector(CustomFeeCommitteeVerifier.UnpricedToken.selector, tokenUnpriced));
+    verifier.getFee(DEST, _msg2(tokenA, 1e18, tokenUnpriced, 5e18), "", bytes4(0));
+  }
+
+  function test_requireAllTokensPriced_strict_passesWhenAllPriced() public {
+    verifier.setRequireAllTokensPriced(true);
+    // Every token priced -> strict mode is a no-op; normal bps fee returned.
+    assertEq(_fee(DEST, _msg2(tokenA, 1e18, tokenB, 1e18)), 75);
+  }
+
+  function test_setRequireAllTokensPriced_onlyOwner() public {
+    vm.prank(stranger);
+    vm.expectRevert();
+    verifier.setRequireAllTokensPriced(true);
+  }
 }
