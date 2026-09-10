@@ -10,6 +10,17 @@ import { IAggregatorV3 } from "./IAggregatorV3.sol";
 library PriceFeedLib {
   error StalePrice(address feed, uint256 updatedAt, uint256 maxStaleness);
   error NonPositivePrice(address feed, int256 answer);
+  error InvalidMaxStaleness(uint256 provided, uint256 min, uint256 max);
+
+  uint256 internal constant STALENESS_MIN = 1 minutes;
+  uint256 internal constant STALENESS_MAX = 7 days;
+
+  /// @notice Revert unless `maxStaleness` is within [STALENESS_MIN, STALENESS_MAX].
+  function requireValidStaleness(uint256 maxStaleness) internal pure {
+    if (maxStaleness < STALENESS_MIN || maxStaleness > STALENESS_MAX) {
+      revert InvalidMaxStaleness(maxStaleness, STALENESS_MIN, STALENESS_MAX);
+    }
+  }
 
   /// @notice Read `latestRoundData`, reverting if the answer is non-positive or
   ///         older than `maxStaleness` seconds.

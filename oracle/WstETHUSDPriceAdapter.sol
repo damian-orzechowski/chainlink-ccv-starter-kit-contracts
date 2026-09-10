@@ -44,6 +44,7 @@ contract WstETHUSDPriceAdapter is IPriceAdapter {
   /// @param maxStaleness  max age (seconds) accepted for the feed's round.
   constructor(address wstETH, address usdFeed, uint256 maxStaleness) {
     if (wstETH == address(0) || usdFeed == address(0)) revert ZeroAddress();
+    PriceFeedLib.requireValidStaleness(maxStaleness);
     WSTETH = IWstETH(wstETH);
     // The math assumes an 18-decimal token
     uint8 dec = IWstETH(wstETH).decimals();
