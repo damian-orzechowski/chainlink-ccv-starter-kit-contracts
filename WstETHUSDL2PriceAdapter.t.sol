@@ -12,20 +12,20 @@ import { MockWstETH } from "./mocks/MockWstETH.sol";
 /// @notice Unit tests for the L2 wstETH -> USD-cents adapter (two-feed composition).
 contract WstETHUSDL2PriceAdapterTest is Test {
   MockWstETH internal wstETH; // 18-decimal token
-  MockAggregatorV3 internal rateFeed; // wstETH/stETH, 18 decimals
-  MockAggregatorV3 internal usdFeed; // stETH/USD, 8 decimals
+  MockAggregatorV3 internal rateFeed; // wstETH/ETH, 18 decimals
+  MockAggregatorV3 internal usdFeed; // ETH/USD, 8 decimals
   MockAggregatorV3 internal sequencer; // L2 sequencer uptime feed (answer 0=up)
   WstETHUSDL2PriceAdapter internal adapter;
 
-  int256 internal constant RATE = 1.2e18; // 1.2 stETH per wstETH, 18 decimals
-  int256 internal constant PRICE = 4000e8; // $4000 / stETH, 8 decimals
+  int256 internal constant RATE = 1.2e18; // 1.2 ETH per wstETH, 18 decimals
+  int256 internal constant PRICE = 4000e8; // $4000 / ETH, 8 decimals
   uint256 internal constant RATE_MAX = 1 days;
   uint256 internal constant USD_MAX = 1 hours;
   uint256 internal constant GRACE = 1 hours;
 
   function setUp() public {
     vm.warp(1_000_000);
-    wstETH = new MockWstETH(1e18);
+    wstETH = new MockWstETH();
     rateFeed = new MockAggregatorV3(18, RATE, block.timestamp);
     usdFeed = new MockAggregatorV3(8, PRICE, block.timestamp);
     sequencer = new MockAggregatorV3(0, 0, block.timestamp - (GRACE + 1));
@@ -56,7 +56,7 @@ contract WstETHUSDL2PriceAdapterTest is Test {
   }
 
   function test_value_oneToken() public view {
-    // 1 wstETH -> 1.2 stETH -> 1.2 * $4000 = 480_000 cents.
+    // 1 wstETH -> 1.2 ETH -> 1.2 * $4000 = 480_000 cents.
     assertEq(adapter.getValueInUSDCents(1e18), 480_000);
   }
 

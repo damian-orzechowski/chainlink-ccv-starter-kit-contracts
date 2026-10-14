@@ -32,7 +32,8 @@ contract AccountingReconstructionTest is Test {
   CustomFeeCommitteeVerifier internal verifier;
 
   MockWstETH internal wstETH;
-  MockAggregatorV3 internal feed; // stETH/USD, 8 decimals
+  MockAggregatorV3 internal rateFeed; // wstETH/ETH, 18 decimals
+  MockAggregatorV3 internal feed; // ETH/USD, 8 decimals
   WstETHUSDPriceAdapter internal adapter1; // real adapter (mutable oracle)
   MockPriceAdapter internal adapter2; // linear, $500 / token
 
@@ -48,7 +49,8 @@ contract AccountingReconstructionTest is Test {
   uint16 internal constant MIN_CENTS = 10;
   uint16 internal constant CAP_CENTS = 1000;
 
-  uint256 internal constant MAX_STALENESS = 1 hours;
+  uint256 internal constant RATE_MAX_STALENESS = 1 days; // wstETH/ETH feed
+  uint256 internal constant MAX_STALENESS = 1 hours; // ETH/USD feed
   uint256 internal constant START_TS = 1_000_000;
 
   function setUp() public {
@@ -65,9 +67,11 @@ contract AccountingReconstructionTest is Test {
       DEST, CustomFeeConfig({ feeBps: FEE_BPS, minFeeUSDCents: MIN_CENTS, capUSDCents: CAP_CENTS, enabled: true })
     );
 
-    wstETH = new MockWstETH(1.2e18);
+    wstETH = new MockWstETH();
+    rateFeed = new MockAggregatorV3(18, 1.2e18, block.timestamp);
     feed = new MockAggregatorV3(8, 4000e8, block.timestamp);
-    adapter1 = new WstETHUSDPriceAdapter(address(wstETH), address(feed), MAX_STALENESS);
+    adapter1 =
+      new WstETHUSDPriceAdapter(address(wstETH), address(rateFeed), address(feed), RATE_MAX_STALENESS, MAX_STALENESS);
     adapter2 = new MockPriceAdapter(token2, 50_000);
     token1 = address(wstETH);
 
