@@ -32,8 +32,7 @@ contract AccountingReconstructionTest is Test {
   CustomFeeCommitteeVerifier internal verifier;
 
   MockWstETH internal wstETH;
-  MockAggregatorV3 internal rateFeed; // wstETH/ETH, 18 decimals
-  MockAggregatorV3 internal feed; // ETH/USD, 8 decimals
+  MockAggregatorV3 internal feed; // wstETH/USD, 8 decimals
   WstETHUSDPriceAdapter internal adapter1; // real adapter (mutable oracle)
   MockPriceAdapter internal adapter2; // linear, $500 / token
 
@@ -49,8 +48,7 @@ contract AccountingReconstructionTest is Test {
   uint16 internal constant MIN_CENTS = 10;
   uint16 internal constant CAP_CENTS = 1000;
 
-  uint256 internal constant RATE_MAX_STALENESS = 1 days; // wstETH/ETH feed
-  uint256 internal constant MAX_STALENESS = 1 hours; // ETH/USD feed
+  uint256 internal constant MAX_STALENESS = 1 hours;
   uint256 internal constant START_TS = 1_000_000;
 
   function setUp() public {
@@ -68,10 +66,8 @@ contract AccountingReconstructionTest is Test {
     );
 
     wstETH = new MockWstETH();
-    rateFeed = new MockAggregatorV3(18, 1.2e18, block.timestamp);
-    feed = new MockAggregatorV3(8, 4000e8, block.timestamp);
-    adapter1 =
-      new WstETHUSDPriceAdapter(address(wstETH), address(rateFeed), address(feed), RATE_MAX_STALENESS, MAX_STALENESS);
+    feed = new MockAggregatorV3(8, 4800e8, block.timestamp);
+    adapter1 = new WstETHUSDPriceAdapter(address(wstETH), address(feed), MAX_STALENESS);
     adapter2 = new MockPriceAdapter(token2, 50_000);
     token1 = address(wstETH);
 
@@ -192,9 +188,9 @@ contract AccountingReconstructionTest is Test {
 
   function test_reproducible_acrossOracleRoundTrip() public {
     uint16 a = _onchain(DEST, _msg1(token1, 1e18));
-    feed.setAnswer(8000e8); // price doubles
+    feed.setAnswer(9600e8); // price doubles
     uint16 b = _onchain(DEST, _msg1(token1, 1e18));
-    feed.setAnswer(4000e8); // restore original round
+    feed.setAnswer(4800e8); // restore original round
     uint16 a2 = _onchain(DEST, _msg1(token1, 1e18));
 
     assertTrue(b != a, "fee tracks oracle state");

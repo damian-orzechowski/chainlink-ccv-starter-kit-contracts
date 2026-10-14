@@ -26,17 +26,15 @@ import { MockWstETH } from "../mocks/MockWstETH.sol";
 contract CustomFeeVerifierIntegrationTest is Test {
   CustomFeeCommitteeVerifier internal verifier;
 
-  // wstETH #1: wstETH/ETH = 1.2, ETH/USD = $4000 (8 dec) -> $4800 = 480_000 cents / token.
+  // wstETH #1: wstETH/USD = $4800 (8 dec) -> 480_000 cents / token.
   MockWstETH internal wstETH1;
-  MockAggregatorV3 internal rateFeed1; // wstETH/ETH
-  MockAggregatorV3 internal feed1; // ETH/USD
+  MockAggregatorV3 internal feed1;
   WstETHUSDPriceAdapter internal adapter1;
   address internal token1; // == address(wstETH1)
 
-  // wstETH #2: wstETH/ETH = 1, ETH/USD = $500 (8 dec) -> $500 = 50_000 cents / token.
+  // wstETH #2: wstETH/USD = $500 (8 dec) -> 50_000 cents / token.
   MockWstETH internal wstETH2;
-  MockAggregatorV3 internal rateFeed2; // wstETH/ETH
-  MockAggregatorV3 internal feed2; // ETH/USD
+  MockAggregatorV3 internal feed2;
   WstETHUSDPriceAdapter internal adapter2;
   address internal token2; // == address(wstETH2)
 
@@ -49,8 +47,7 @@ contract CustomFeeVerifierIntegrationTest is Test {
   uint16 internal constant MIN_CENTS = 10;
   uint16 internal constant CAP_CENTS = 1000;
 
-  uint256 internal constant RATE_MAX_STALENESS = 1 days; // wstETH/ETH feeds
-  uint256 internal constant MAX_STALENESS = 1 hours; // ETH/USD feeds
+  uint256 internal constant MAX_STALENESS = 1 hours;
   uint256 internal constant START_TS = 1_000_000;
 
   function setUp() public {
@@ -76,19 +73,13 @@ contract CustomFeeVerifierIntegrationTest is Test {
 
     // Real adapters backed by mock oracles.
     wstETH1 = new MockWstETH();
-    rateFeed1 = new MockAggregatorV3(18, 1.2e18, block.timestamp);
-    feed1 = new MockAggregatorV3(8, 4000e8, block.timestamp);
-    adapter1 = new WstETHUSDPriceAdapter(
-      address(wstETH1), address(rateFeed1), address(feed1), RATE_MAX_STALENESS, MAX_STALENESS
-    );
+    feed1 = new MockAggregatorV3(8, 4800e8, block.timestamp);
+    adapter1 = new WstETHUSDPriceAdapter(address(wstETH1), address(feed1), MAX_STALENESS);
     token1 = address(wstETH1);
 
     wstETH2 = new MockWstETH();
-    rateFeed2 = new MockAggregatorV3(18, 1e18, block.timestamp);
     feed2 = new MockAggregatorV3(8, 500e8, block.timestamp);
-    adapter2 = new WstETHUSDPriceAdapter(
-      address(wstETH2), address(rateFeed2), address(feed2), RATE_MAX_STALENESS, MAX_STALENESS
-    );
+    adapter2 = new WstETHUSDPriceAdapter(address(wstETH2), address(feed2), MAX_STALENESS);
     token2 = address(wstETH2);
 
     verifier.setPriceAdapter(token1, IPriceAdapter(address(adapter1)));
@@ -187,12 +178,10 @@ contract CustomFeeVerifierIntegrationTest is Test {
     uint8[3] memory decs = [uint8(6), uint8(8), uint8(18)];
     for (uint256 i = 0; i < decs.length; ++i) {
       uint8 d = decs[i];
-      // 1.2 ETH / wstETH and $4000 / ETH, both expressed at `d` decimals.
-      MockAggregatorV3 r = new MockAggregatorV3(d, int256(12 * (10 ** uint256(d)) / 10), block.timestamp);
-      MockAggregatorV3 f = new MockAggregatorV3(d, int256(4000 * (10 ** uint256(d))), block.timestamp);
-      WstETHUSDPriceAdapter a =
-        new WstETHUSDPriceAdapter(address(wstETH1), address(r), address(f), RATE_MAX_STALENESS, MAX_STALENESS);
-      // 1 wstETH = 1.2 ETH * $4000 = $4800 = 480_000 cents, regardless of feed decimals.
+      // $4800 / wstETH expressed at `d` decimals.
+      MockAggregatorV3 f = new MockAggregatorV3(d, int256(4800 * (10 ** uint256(d))), block.timestamp);
+      WstETHUSDPriceAdapter a = new WstETHUSDPriceAdapter(address(wstETH1), address(f), MAX_STALENESS);
+      // 1 wstETH = $4800 = 480_000 cents, regardless of feed decimals.
       assertEq(a.getValueInUSDCents(1e18), 480_000, "decimals matrix");
     }
   }
