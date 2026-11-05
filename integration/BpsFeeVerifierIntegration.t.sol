@@ -3,8 +3,8 @@ pragma solidity ^0.8.26;
 
 import { Test } from "forge-std/Test.sol";
 
-import { CustomFeeCommitteeVerifier } from "../../src/CustomFeeCommitteeVerifier.sol";
-import { CustomFeeConfig } from "../../src/config/CustomFeeConfig.sol";
+import { BpsFeeCommitteeVerifier } from "../../src/BpsFeeCommitteeVerifier.sol";
+import { BpsFeeConfig } from "../../src/config/BpsFeeConfig.sol";
 import { IPriceAdapter } from "../../src/oracle/IPriceAdapter.sol";
 import { WstETHUSDPriceAdapter } from "../../src/oracle/WstETHUSDPriceAdapter.sol";
 import { PriceFeedLib } from "../../src/oracle/PriceFeedLib.sol";
@@ -23,8 +23,8 @@ import { MockWstETH } from "../mocks/MockWstETH.sol";
 ///         MockPriceAdapter) do not, catching decimals/unit mismatches and
 ///         pinning the fail-closed-on-stale behavior. Also includes a decimals
 ///         matrix and a sub-cent rounding case.
-contract CustomFeeVerifierIntegrationTest is Test {
-  CustomFeeCommitteeVerifier internal verifier;
+contract BpsFeeVerifierIntegrationTest is Test {
+  BpsFeeCommitteeVerifier internal verifier;
 
   // wstETH #1: wstETH/USD = $4800 (8 dec) -> 480_000 cents / token.
   MockWstETH internal wstETH1;
@@ -55,7 +55,7 @@ contract CustomFeeVerifierIntegrationTest is Test {
 
     CommitteeVerifier.DynamicConfig memory dc =
       CommitteeVerifier.DynamicConfig({ feeAggregator: makeAddr("agg"), allowlistAdmin: makeAddr("allowlistAdmin") });
-    verifier = new CustomFeeCommitteeVerifier(dc, new string[](0), makeAddr("rmn"), bytes4(uint32(1)));
+    verifier = new BpsFeeCommitteeVerifier(dc, new string[](0), makeAddr("rmn"), bytes4(uint32(1)));
 
     BaseVerifier.RemoteChainConfigArgs[] memory args = new BaseVerifier.RemoteChainConfigArgs[](1);
     args[0] = BaseVerifier.RemoteChainConfigArgs({
@@ -68,7 +68,7 @@ contract CustomFeeVerifierIntegrationTest is Test {
     });
     verifier.applyRemoteChainConfigUpdates(args);
     verifier.setFeeConfig(
-      DEST, CustomFeeConfig({ feeBps: FEE_BPS, minFeeUSDCents: MIN_CENTS, capUSDCents: CAP_CENTS, enabled: true })
+      DEST, BpsFeeConfig({ feeBps: FEE_BPS, minFeeUSDCents: MIN_CENTS, capUSDCents: CAP_CENTS, enabled: true })
     );
 
     // Real adapters backed by mock oracles.

@@ -3,9 +3,9 @@ pragma solidity ^0.8.26;
 
 import { Test } from "forge-std/Test.sol";
 
-import { DeployCustomFeeCommitteeVerifier } from "../script/DeployCustomFeeCommitteeVerifier.s.sol";
-import { CustomFeeCommitteeVerifier } from "../src/CustomFeeCommitteeVerifier.sol";
-import { CustomFeeConfig } from "../src/config/CustomFeeConfig.sol";
+import { DeployBpsFeeCommitteeVerifier } from "../script/DeployBpsFeeCommitteeVerifier.s.sol";
+import { BpsFeeCommitteeVerifier } from "../src/BpsFeeCommitteeVerifier.sol";
+import { BpsFeeConfig } from "../src/config/BpsFeeConfig.sol";
 import { IPriceAdapter } from "../src/oracle/IPriceAdapter.sol";
 
 import { Client } from "@chainlink-ccip/libraries/Client.sol";
@@ -15,12 +15,12 @@ import { MockVersionedVerifierResolver } from "./mocks/MockVersionedVerifierReso
 
 /// @dev Exposes the script's internal load/deploy so tests can drive them with
 ///      an in-memory Config (no file, env, or broadcast required).
-contract DeployHarness is DeployCustomFeeCommitteeVerifier {
+contract DeployHarness is DeployBpsFeeCommitteeVerifier {
   function loadFrom(string memory path) external view returns (Config memory) {
     return _load(path);
   }
 
-  function deployFor(Config memory cfg) external returns (CustomFeeCommitteeVerifier) {
+  function deployFor(Config memory cfg) external returns (BpsFeeCommitteeVerifier) {
     return _deploy(cfg);
   }
 }
@@ -40,7 +40,7 @@ contract DeployScriptTest is Test {
   // --- JSON parsing (validates the alphabetical struct decode) ---------------
 
   function test_load_parsesExampleConfig() public view {
-    DeployCustomFeeCommitteeVerifier.Config memory cfg = harness.loadFrom("script/config/deploy.example.json");
+    DeployBpsFeeCommitteeVerifier.Config memory cfg = harness.loadFrom("script/config/deploy.example.json");
 
     assertEq(cfg.rmn, 0x0000000000000000000000000000000000000001, "rmn");
     assertEq(cfg.versionTag, bytes4(uint32(1)), "versionTag");
@@ -70,7 +70,7 @@ contract DeployScriptTest is Test {
     MockPriceAdapter adapter = new MockPriceAdapter(token, 100_000); // $1000 / token
     MockVersionedVerifierResolver resolver = new MockVersionedVerifierResolver();
 
-    CustomFeeCommitteeVerifier verifier = harness.deployFor(_buildConfig(token, address(adapter), address(resolver)));
+    BpsFeeCommitteeVerifier verifier = harness.deployFor(_buildConfig(token, address(adapter), address(resolver)));
 
     _assertConfigured(verifier, token, address(adapter));
     _assertGetFee(verifier, token);
@@ -81,7 +81,7 @@ contract DeployScriptTest is Test {
 
   function _buildConfig(address token, address adapter, address resolver)
     internal
-    returns (DeployCustomFeeCommitteeVerifier.Config memory cfg)
+    returns (DeployBpsFeeCommitteeVerifier.Config memory cfg)
   {
     cfg.rmn = makeAddr("rmn");
     cfg.feeAggregator = makeAddr("agg");
@@ -90,8 +90,8 @@ contract DeployScriptTest is Test {
     cfg.storageLocations = new string[](0);
     cfg.resolver = resolver;
 
-    cfg.chains = new DeployCustomFeeCommitteeVerifier.RemoteChainInput[](1);
-    cfg.chains[0] = DeployCustomFeeCommitteeVerifier.RemoteChainInput({
+    cfg.chains = new DeployBpsFeeCommitteeVerifier.RemoteChainInput[](1);
+    cfg.chains[0] = DeployBpsFeeCommitteeVerifier.RemoteChainInput({
       capUSDCents: 1000,
       chainSelector: DEST,
       enabled: true,
@@ -103,8 +103,8 @@ contract DeployScriptTest is Test {
       router: makeAddr("router")
     });
 
-    cfg.adapters = new DeployCustomFeeCommitteeVerifier.PriceAdapterInput[](1);
-    cfg.adapters[0] = DeployCustomFeeCommitteeVerifier.PriceAdapterInput({ adapter: adapter, token: token });
+    cfg.adapters = new DeployBpsFeeCommitteeVerifier.PriceAdapterInput[](1);
+    cfg.adapters[0] = DeployBpsFeeCommitteeVerifier.PriceAdapterInput({ adapter: adapter, token: token });
 
     address[] memory signers = new address[](2);
     signers[0] = makeAddr("signer1");
@@ -113,24 +113,24 @@ contract DeployScriptTest is Test {
     if (uint160(signers[0]) > uint160(signers[1])) {
       (signers[0], signers[1]) = (signers[1], signers[0]);
     }
-    cfg.sigs = new DeployCustomFeeCommitteeVerifier.SignatureConfigInput[](1);
-    cfg.sigs[0] = DeployCustomFeeCommitteeVerifier.SignatureConfigInput({
+    cfg.sigs = new DeployBpsFeeCommitteeVerifier.SignatureConfigInput[](1);
+    cfg.sigs[0] = DeployBpsFeeCommitteeVerifier.SignatureConfigInput({
       signers: signers, sourceChainSelector: SRC, threshold: 2
     });
   }
 
-  function _assertConfigured(CustomFeeCommitteeVerifier verifier, address token, address adapter) internal view {
+  function _assertConfigured(BpsFeeCommitteeVerifier verifier, address token, address adapter) internal view {
     assertTrue(address(verifier) != address(0), "deployed");
     assertEq(verifier.owner(), address(harness), "owner");
 
-    CustomFeeConfig memory fc = verifier.getFeeConfig(DEST);
+    BpsFeeConfig memory fc = verifier.getFeeConfig(DEST);
     assertEq(fc.feeBps, 5, "feeBps");
     assertTrue(fc.enabled, "enabled");
     assertEq(fc.capUSDCents, 1000, "cap");
     assertEq(address(verifier.getPriceAdapter(token)), adapter, "adapter registered");
   }
 
-  function _assertGetFee(CustomFeeCommitteeVerifier verifier, address token) internal view {
+  function _assertGetFee(BpsFeeCommitteeVerifier verifier, address token) internal view {
     // 1 token == $1000 == 100_000 cents; * 5 / 10_000 = 50; base gas/payload passthrough.
     Client.EVM2AnyMessage memory m;
     m.tokenAmounts = new Client.EVMTokenAmount[](1);

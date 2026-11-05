@@ -3,8 +3,8 @@ pragma solidity ^0.8.26;
 
 import { Test } from "forge-std/Test.sol";
 
-import { CustomFeeCommitteeVerifier } from "../../src/CustomFeeCommitteeVerifier.sol";
-import { CustomFeeConfig } from "../../src/config/CustomFeeConfig.sol";
+import { BpsFeeCommitteeVerifier } from "../../src/BpsFeeCommitteeVerifier.sol";
+import { BpsFeeConfig } from "../../src/config/BpsFeeConfig.sol";
 import { IPriceAdapter } from "../../src/oracle/IPriceAdapter.sol";
 import { WstETHUSDPriceAdapter } from "../../src/oracle/WstETHUSDPriceAdapter.sol";
 
@@ -29,7 +29,7 @@ import { MockWstETH } from "../mocks/MockWstETH.sol";
 ///               eth_call at the send block reproduces the historical charge.
 
 contract AccountingReconstructionTest is Test {
-  CustomFeeCommitteeVerifier internal verifier;
+  BpsFeeCommitteeVerifier internal verifier;
 
   MockWstETH internal wstETH;
   MockAggregatorV3 internal feed; // wstETH/USD, 8 decimals
@@ -53,7 +53,7 @@ contract AccountingReconstructionTest is Test {
 
   function setUp() public {
     vm.warp(START_TS);
-    verifier = new CustomFeeCommitteeVerifier(
+    verifier = new BpsFeeCommitteeVerifier(
       CommitteeVerifier.DynamicConfig({ feeAggregator: makeAddr("agg"), allowlistAdmin: makeAddr("admin") }),
       new string[](0),
       makeAddr("rmn"),
@@ -62,7 +62,7 @@ contract AccountingReconstructionTest is Test {
     _setBase(DEST, FLAT_FEE);
     _setBase(DEST_FLAT, FLAT_FEE);
     verifier.setFeeConfig(
-      DEST, CustomFeeConfig({ feeBps: FEE_BPS, minFeeUSDCents: MIN_CENTS, capUSDCents: CAP_CENTS, enabled: true })
+      DEST, BpsFeeConfig({ feeBps: FEE_BPS, minFeeUSDCents: MIN_CENTS, capUSDCents: CAP_CENTS, enabled: true })
     );
 
     wstETH = new MockWstETH();
@@ -120,7 +120,7 @@ contract AccountingReconstructionTest is Test {
   /// @dev The documented off-chain reconstruction, using ONLY public getters.
   ///      An indexer implementing ACCOUNTING.md runs exactly this.
   function _reconstruct(uint64 dest, Client.EVM2AnyMessage memory m) internal view returns (uint16) {
-    CustomFeeConfig memory c = verifier.getFeeConfig(dest);
+    BpsFeeConfig memory c = verifier.getFeeConfig(dest);
     if (!c.enabled) {
       (BaseVerifier.RemoteChainConfigArgs memory rc,) = verifier.getRemoteChainConfig(dest);
       return rc.feeUSDCents; // flat fallback (bps policy disabled)
