@@ -7,10 +7,10 @@ import { ICrossChainVerifierV1 } from "@chainlink-ccip/interfaces/ICrossChainVer
 import { Client } from "@chainlink-ccip/libraries/Client.sol";
 import { FinalityCodec } from "@chainlink-ccip/libraries/FinalityCodec.sol";
 
-import { CustomFeeConfig } from "./config/CustomFeeConfig.sol";
+import { BpsFeeConfig } from "./config/BpsFeeConfig.sol";
 import { IPriceAdapter } from "./oracle/IPriceAdapter.sol";
 
-/// @title CustomFeeCommitteeVerifier
+/// @title BpsFeeCommitteeVerifier
 /// @notice A thin {CommitteeVerifier} subclass that charges the CCV operator a
 ///         value-based fee: `fee = transferValueUSD * feeBps`, clamped to a
 ///         `[minFeeUSDCents, capUSDCents]` range. Everything else — signature
@@ -25,7 +25,7 @@ import { IPriceAdapter } from "./oracle/IPriceAdapter.sol";
 ///         adapter you can register; nothing here is asset-specific.
 ///
 ///         Two independent config surfaces:
-///           - fee policy   : per destination chain ({CustomFeeConfig})
+///           - fee policy   : per destination chain ({BpsFeeConfig})
 ///           - price adapter : per token, global (a token's USD value does not
 ///                             depend on the destination)
 ///
@@ -33,9 +33,9 @@ import { IPriceAdapter } from "./oracle/IPriceAdapter.sol";
 ///         behind the `VersionedVerifierResolver` (outbound per dest chain,
 ///         inbound per version tag) using a distinct `versionTag` and a
 ///         non-overlapping signer set (scoping doc Section 3).
-contract CustomFeeCommitteeVerifier is CommitteeVerifier {
+contract BpsFeeCommitteeVerifier is CommitteeVerifier {
   /// @notice Per-destination-chain bps fee policy.
-  mapping(uint64 destChainSelector => CustomFeeConfig config) internal s_feeConfig;
+  mapping(uint64 destChainSelector => BpsFeeConfig config) internal s_feeConfig;
 
   /// @notice Per-token price adapter registry (token address on this chain ->
   ///         adapter that prices it in USD cents). Unset (address(0)) means the
@@ -56,7 +56,7 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
   error UnpricedToken(address token);
 
   /// @notice Emitted when the bps fee policy for a destination chain is set.
-  event CustomFeeConfigSet(uint64 indexed destChainSelector, CustomFeeConfig config);
+  event BpsFeeConfigSet(uint64 indexed destChainSelector, BpsFeeConfig config);
 
   /// @notice Emitted when a token's price adapter is set (or cleared to address(0)).
   event PriceAdapterSet(address indexed token, address indexed adapter);
@@ -100,7 +100,7 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
 
     FinalityCodec._ensureRequestedFinalityAllowed(requestedFinality, getAllowedFinalityConfig());
 
-    CustomFeeConfig storage cfg = s_feeConfig[destChainSelector];
+    BpsFeeConfig storage cfg = s_feeConfig[destChainSelector];
 
     // No bps config -> stock flat-fee behavior.
     if (!cfg.enabled) {
@@ -153,7 +153,7 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
   // ---------------------------------------------------------------------------
 
   /// @notice Set (or update) the bps fee policy for a destination chain.
-  function setFeeConfig(uint64 destChainSelector, CustomFeeConfig calldata config) external onlyOwner {
+  function setFeeConfig(uint64 destChainSelector, BpsFeeConfig calldata config) external onlyOwner {
     if (config.enabled && config.minFeeUSDCents == 0) revert MinFeeMustBeNonZero();
     if (config.feeBps > 10_000) revert FeeBpsTooHigh(config.feeBps);
     if (config.capUSDCents < config.minFeeUSDCents) revert CapBelowFloor(config.capUSDCents, config.minFeeUSDCents);
@@ -161,7 +161,7 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
       revert RemoteChainNotSupported(destChainSelector);
     }
     s_feeConfig[destChainSelector] = config;
-    emit CustomFeeConfigSet(destChainSelector, config);
+    emit BpsFeeConfigSet(destChainSelector, config);
   }
 
   /// @notice Set the fail-open/fail-closed posture for unpriced tokens.
@@ -196,7 +196,7 @@ contract CustomFeeCommitteeVerifier is CommitteeVerifier {
   }
 
   /// @notice Read the bps fee policy for a destination chain.
-  function getFeeConfig(uint64 destChainSelector) external view returns (CustomFeeConfig memory) {
+  function getFeeConfig(uint64 destChainSelector) external view returns (BpsFeeConfig memory) {
     return s_feeConfig[destChainSelector];
   }
 

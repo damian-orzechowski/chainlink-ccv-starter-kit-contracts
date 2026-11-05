@@ -5,7 +5,7 @@ pragma solidity ^0.8.26;
 ///         operator fee. One entry per `destChainSelector`.
 /// @dev    File-level struct so it can be shared by the verifier, config
 ///         setters, deploy scripts and tests without a library indirection.
-struct CustomFeeConfig {
+struct BpsFeeConfig {
   /// @notice Fee in basis points of transfer value. e.g. 5 = 0.05%.
   uint16 feeBps;
   /// @notice Minimum fee floor, in USD cents. Applied when the bps fee is below it.
