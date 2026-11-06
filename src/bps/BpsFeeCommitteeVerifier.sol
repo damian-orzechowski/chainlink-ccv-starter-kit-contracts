@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-import { CommitteeVerifier } from "@chainlink-ccip/ccvs/CommitteeVerifier.sol";
-import { BaseVerifier } from "@chainlink-ccip/ccvs/components/BaseVerifier.sol";
-import { ICrossChainVerifierV1 } from "@chainlink-ccip/interfaces/ICrossChainVerifierV1.sol";
-import { Client } from "@chainlink-ccip/libraries/Client.sol";
-import { FinalityCodec } from "@chainlink-ccip/libraries/FinalityCodec.sol";
+import { CommitteeVerifier } from "@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol";
+import { BaseVerifier } from "@chainlink/contracts-ccip/contracts/ccvs/components/BaseVerifier.sol";
+import { ICrossChainVerifierV1 } from "@chainlink/contracts-ccip/contracts/interfaces/ICrossChainVerifierV1.sol";
+import { Client } from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
+import { FinalityCodec } from "@chainlink/contracts-ccip/contracts/libraries/FinalityCodec.sol";
 
-import { BpsFeeConfig } from "./config/BpsFeeConfig.sol";
-import { IPriceAdapter } from "./oracle/IPriceAdapter.sol";
+import { BpsFeeConfig } from "./BpsFeeConfig.sol";
+import { IPriceAdapter } from "./../price-adapters/IPriceAdapter.sol";
 
 /// @title BpsFeeCommitteeVerifier
 /// @notice A thin {CommitteeVerifier} subclass that charges the CCV operator a

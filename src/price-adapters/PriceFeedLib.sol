@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-import { IAggregatorV3 } from "./IAggregatorV3.sol";
+import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 /// @title PriceFeedLib
 /// @notice Single, audited place for reading a Chainlink feed safely. Every
@@ -42,7 +42,7 @@ library PriceFeedLib {
   }
 
   /// @notice Revert unless the L2 sequencer is up  for longer than `gracePeriod`.
-  function requireSequencerUp(IAggregatorV3 sequencerUptimeFeed, uint256 gracePeriod) internal view {
+  function requireSequencerUp(AggregatorV3Interface sequencerUptimeFeed, uint256 gracePeriod) internal view {
     (, int256 answer, uint256 startedAt,,) = sequencerUptimeFeed.latestRoundData();
     if (answer != 0 || startedAt == 0) revert SequencerDown();
     uint256 timeSinceUp = block.timestamp - startedAt;
@@ -52,7 +52,7 @@ library PriceFeedLib {
   /// @notice Read `latestRoundData`, reverting if the answer is non-positive or
   ///         older than `maxStaleness` seconds.
   /// @return answer the feed answer as a uint256 (guaranteed > 0).
-  function readFresh(IAggregatorV3 feed, uint256 maxStaleness) internal view returns (uint256 answer) {
+  function readFresh(AggregatorV3Interface feed, uint256 maxStaleness) internal view returns (uint256 answer) {
     (, int256 rawAnswer,, uint256 updatedAt,) = feed.latestRoundData();
     if (rawAnswer <= 0) revert NonPositivePrice(address(feed), rawAnswer);
     // updatedAt == 0 means "no data yet" and is treated as stale.
