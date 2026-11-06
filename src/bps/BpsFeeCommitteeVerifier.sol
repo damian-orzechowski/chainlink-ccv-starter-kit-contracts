@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
+// SPDX-FileCopyrightText: 2026 SmartContract Chainlink Limited SEZC with contributions from Demerzel Solutions Limited
 pragma solidity ^0.8.26;
 
 import { CommitteeVerifier } from "@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol";
