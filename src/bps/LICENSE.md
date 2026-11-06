@@ -12,7 +12,7 @@ Licensor:             SmartContract Chainlink Limited SEZC
 Licensed Work:     	  Cross-Chain Interoperability Protocol v2.0
 The Licensed Work is (c) 2026 SmartContract Chainlink Limited SEZC
 
-Additional Use Grant: Any uses listed and defined at [v2.0-CCIP-License-grants](./v2.0-CCIP-License-grants.md)
+Additional Use Grant: Any uses listed and defined at [v2.0-CCIP-License-grants](https://github.com/smartcontractkit/chainlink-ccip/blob/contracts-ccip-v2.0.0/chains/evm/contracts/v2.0-CCIP-License-grants.md)
 
 Change Date:       	  April 1, 2030
 
