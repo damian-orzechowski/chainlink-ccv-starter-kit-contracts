@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import { IPriceAdapter } from "./IPriceAdapter.sol";
-import { IAggregatorV3 } from "./IAggregatorV3.sol";
+import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import { PriceFeedLib } from "./PriceFeedLib.sol";
 
 interface IERC20Decimals {
@@ -19,7 +19,7 @@ interface IERC20Decimals {
 /// @dev    Each feed has its own heartbeat, so staleness is configured per feed.
 ///         Assumes wstETH has 18 decimals; ETH is 18 decimals. Rounds down.
 contract WstETHUSDL2PriceAdapter is IPriceAdapter {
-  using PriceFeedLib for IAggregatorV3;
+  using PriceFeedLib for AggregatorV3Interface;
 
   error ZeroAddress();
   /// @notice The bound token's decimals don't match the adapter's assumption.
@@ -31,15 +31,15 @@ contract WstETHUSDL2PriceAdapter is IPriceAdapter {
 
   address public immutable TOKEN; // the wstETH token this adapter prices
 
-  IAggregatorV3 public immutable RATE_FEED; // wstETH/ETH
+  AggregatorV3Interface public immutable RATE_FEED; // wstETH/ETH
   uint8 public immutable RATE_FEED_DECIMALS;
   uint256 public immutable RATE_MAX_STALENESS; // seconds
 
-  IAggregatorV3 public immutable USD_FEED; // ETH/USD
+  AggregatorV3Interface public immutable USD_FEED; // ETH/USD
   uint8 public immutable USD_FEED_DECIMALS;
   uint256 public immutable USD_MAX_STALENESS; // seconds
 
-  IAggregatorV3 public immutable SEQUENCER_UPTIME_FEED; // Chainlink L2 sequencer uptime feed
+  AggregatorV3Interface public immutable SEQUENCER_UPTIME_FEED; // Chainlink L2 sequencer uptime feed
   uint256 public immutable GRACE_PERIOD; // seconds to wait after sequencer recovery
 
   /// @param wstETH            the wstETH token this adapter prices (must be 18-decimal).
@@ -67,13 +67,13 @@ contract WstETHUSDL2PriceAdapter is IPriceAdapter {
     // The math assumes an 18-decimal token
     uint8 dec = IERC20Decimals(wstETH).decimals();
     if (dec != TOKEN_DECIMALS) revert UnexpectedTokenDecimals(TOKEN_DECIMALS, dec);
-    RATE_FEED = IAggregatorV3(rateFeed);
-    RATE_FEED_DECIMALS = IAggregatorV3(rateFeed).decimals();
+    RATE_FEED = AggregatorV3Interface(rateFeed);
+    RATE_FEED_DECIMALS = AggregatorV3Interface(rateFeed).decimals();
     RATE_MAX_STALENESS = rateMaxStaleness;
-    USD_FEED = IAggregatorV3(usdFeed);
-    USD_FEED_DECIMALS = IAggregatorV3(usdFeed).decimals();
+    USD_FEED = AggregatorV3Interface(usdFeed);
+    USD_FEED_DECIMALS = AggregatorV3Interface(usdFeed).decimals();
     USD_MAX_STALENESS = usdMaxStaleness;
-    SEQUENCER_UPTIME_FEED = IAggregatorV3(sequencerUptimeFeed);
+    SEQUENCER_UPTIME_FEED = AggregatorV3Interface(sequencerUptimeFeed);
     GRACE_PERIOD = gracePeriod;
   }
 

@@ -3,15 +3,15 @@ pragma solidity ^0.8.26;
 
 import { Test } from "forge-std/Test.sol";
 
-import { BpsFeeCommitteeVerifier } from "../src/BpsFeeCommitteeVerifier.sol";
-import { BpsFeeConfig } from "../src/config/BpsFeeConfig.sol";
-import { IPriceAdapter } from "../src/oracle/IPriceAdapter.sol";
+import { BpsFeeCommitteeVerifier } from "../src/bps/BpsFeeCommitteeVerifier.sol";
+import { BpsFeeConfig } from "../src/bps/BpsFeeConfig.sol";
+import { IPriceAdapter } from "../src/price-adapters/IPriceAdapter.sol";
 
-import { CommitteeVerifier } from "@chainlink-ccip/ccvs/CommitteeVerifier.sol";
-import { BaseVerifier } from "@chainlink-ccip/ccvs/components/BaseVerifier.sol";
-import { IRouter } from "@chainlink-ccip/interfaces/IRouter.sol";
-import { Client } from "@chainlink-ccip/libraries/Client.sol";
-import { FinalityCodec } from "@chainlink-ccip/libraries/FinalityCodec.sol";
+import { CommitteeVerifier } from "@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol";
+import { BaseVerifier } from "@chainlink/contracts-ccip/contracts/ccvs/components/BaseVerifier.sol";
+import { IRouter } from "@chainlink/contracts-ccip/contracts/interfaces/IRouter.sol";
+import { Client } from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
+import { FinalityCodec } from "@chainlink/contracts-ccip/contracts/libraries/FinalityCodec.sol";
 
 import { MockPriceAdapter } from "./mocks/MockPriceAdapter.sol";
 

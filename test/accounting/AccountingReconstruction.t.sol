@@ -3,15 +3,15 @@ pragma solidity ^0.8.26;
 
 import { Test } from "forge-std/Test.sol";
 
-import { BpsFeeCommitteeVerifier } from "../../src/BpsFeeCommitteeVerifier.sol";
-import { BpsFeeConfig } from "../../src/config/BpsFeeConfig.sol";
-import { IPriceAdapter } from "../../src/oracle/IPriceAdapter.sol";
-import { WstETHUSDPriceAdapter } from "../../src/oracle/WstETHUSDPriceAdapter.sol";
+import { BpsFeeCommitteeVerifier } from "../../src/bps/BpsFeeCommitteeVerifier.sol";
+import { BpsFeeConfig } from "../../src/bps/BpsFeeConfig.sol";
+import { IPriceAdapter } from "../../src/price-adapters/IPriceAdapter.sol";
+import { WstETHUSDPriceAdapter } from "../../src/price-adapters/WstETHUSDPriceAdapter.sol";
 
-import { CommitteeVerifier } from "@chainlink-ccip/ccvs/CommitteeVerifier.sol";
-import { BaseVerifier } from "@chainlink-ccip/ccvs/components/BaseVerifier.sol";
-import { IRouter } from "@chainlink-ccip/interfaces/IRouter.sol";
-import { Client } from "@chainlink-ccip/libraries/Client.sol";
+import { CommitteeVerifier } from "@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol";
+import { BaseVerifier } from "@chainlink/contracts-ccip/contracts/ccvs/components/BaseVerifier.sol";
+import { IRouter } from "@chainlink/contracts-ccip/contracts/interfaces/IRouter.sol";
+import { Client } from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
 
 import { MockPriceAdapter } from "../mocks/MockPriceAdapter.sol";
 import { MockAggregatorV3 } from "../mocks/MockAggregatorV3.sol";

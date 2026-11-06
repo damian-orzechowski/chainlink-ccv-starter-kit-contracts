@@ -3,8 +3,8 @@ pragma solidity ^0.8.26;
 
 import { Test } from "forge-std/Test.sol";
 
-import { WstETHUSDL2PriceAdapter } from "../src/oracle/WstETHUSDL2PriceAdapter.sol";
-import { PriceFeedLib } from "../src/oracle/PriceFeedLib.sol";
+import { WstETHUSDL2PriceAdapter } from "../src/price-adapters/WstETHUSDL2PriceAdapter.sol";
+import { PriceFeedLib } from "../src/price-adapters/PriceFeedLib.sol";
 
 import { MockAggregatorV3 } from "./mocks/MockAggregatorV3.sol";
 import { MockWstETH } from "./mocks/MockWstETH.sol";

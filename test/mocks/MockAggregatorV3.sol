@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.26;
 
-import { IAggregatorV3 } from "../../src/oracle/IAggregatorV3.sol";
+import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 /// @notice Minimal configurable Chainlink aggregator mock for unit tests.
-contract MockAggregatorV3 is IAggregatorV3 {
+contract MockAggregatorV3 is AggregatorV3Interface {
   uint8 internal _decimals;
   int256 internal _answer;
   uint256 internal _updatedAt;
@@ -33,5 +33,21 @@ contract MockAggregatorV3 is IAggregatorV3 {
     returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
   {
     return (1, _answer, _updatedAt, _updatedAt, 1);
+  }
+
+  function description() external pure returns (string memory) {
+    return "MockAggregatorV3";
+  }
+
+  function version() external pure returns (uint256) {
+    return 1;
+  }
+
+  function getRoundData(uint80 roundId_)
+    external
+    view
+    returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
+  {
+    return (roundId_, _answer, _updatedAt, _updatedAt, roundId_);
   }
 }
