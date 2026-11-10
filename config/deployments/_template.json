@@ -14,5 +14,6 @@
     "args": {},
     "encodedArgs": "0x"
   },
-  "verifiers": []
+  "verifiers": [],
+  "priceAdapters": []
 }
