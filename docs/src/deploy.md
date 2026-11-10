@@ -126,6 +126,67 @@ Two constructor arguments are **immutable**:
   the verifier. Worth double-checking against the chain config before this step.
 - **`versionTag`** — a new tag means a new verifier deployment plus resolver re-wiring.
 
+### BPS-fee verifier
+
+```bash
+# requires: CHAIN, TAG, RPC_URL — broadcasts with SIGNER (default --aws)
+make deploy-bps-verifier CHAIN=sepolia TAG=0x00020001 RPC_URL=$SEPOLIA_RPC_URL
+```
+
+Deploys `BpsFeeCommitteeVerifier` (`src/bps/`) instead of the stock `CommitteeVerifier`.
+`DeployBpsVerifier` subclasses `DeployVerifier` and only swaps the implementation, so
+everything above applies unchanged: the same arguments, the same operator `verifiers[]`
+entry for the tag, the same up-front checks and role handover, and the same record
+(with `"contract": "BpsFeeCommitteeVerifier"`, which `make verify` uses to pick the
+source). Give it its own tag; the resolver wiring treats it like any other verifier.
+
+The contract is a `CommitteeVerifier`, so every configure, ownership, fee and governance
+target works on it by tag. Its bps policy is not set at deploy: until the owner calls
+`setFeeConfig` (after `apply-remote-config` for that destination), `setPriceAdapter(s)`
+and optionally `setRequireAllTokensPriced`, `getFee` charges the flat
+`remoteChainConfig.feeUSDCents`.
+
+### Price adapters
+
+```bash
+# requires: CHAIN, TOKEN, RPC_URL — broadcasts with SIGNER (default --aws)
+make deploy-price-adapter CHAIN=sepolia TOKEN=<wstETH address> RPC_URL=$SEPOLIA_RPC_URL
+```
+
+The BPS verifier values a transfer by asking one `IPriceAdapter` per token. Declare each
+adapter in `config/operator/chains/<alias>.json` → `priceAdapters[]` first (see the
+[config schema](config-schema.md)); its `contract` picks the implementation:
+
+| `contract` | Where | Prices wstETH as |
+|---|---|---|
+| `WstETHUSDPriceAdapter` | Ethereum | one wstETH/USD feed |
+| `WstETHUSDL2PriceAdapter` | L2s | wstETH/ETH × ETH/USD, refused while the sequencer is down or in its grace period |
+
+`DeployPriceAdapter` deploys the entry for `TOKEN` with plain `CREATE` and appends it to
+`deployments/<alias>.json` → `priceAdapters[]`. Adapters have no owner and nothing
+mutable, so the entry is the whole configuration: changing a feed or a staleness bound
+means editing the entry and deploying again with `ALLOW_ADAPTER_REPLACE=true` (a token
+already on record otherwise reverts).
+
+| Requirement | Source file | Revert message |
+|---|---|---|
+| `TOKEN` non-zero | deploy argument | `DeployPriceAdapter: token must be non-zero` |
+| entry declared for `TOKEN` | `config/operator/chains/<alias>.json` → `priceAdapters[]` | `ConfigLib: no priceAdapters entry for token …` |
+| every key the `contract` takes, non-zero addresses, no other key | same | `ConfigLib: missing …` / `zero address at …` / `unknown key …` |
+| staleness in `[60, 604800]`, `gracePeriod` in `[60, 21600]`, token is 18-decimal | same | adapter constructor (`InvalidMaxStaleness` / `InvalidGracePeriod` / `UnexpectedTokenDecimals`) |
+
+After deploying, the script prices one token through the live feeds. A revert there is
+only a **warning**, because a testnet feed may simply be stale, but it also catches a
+wrong feed address. Until the adapter prices, `getFee` values that token at zero (or
+reverts, with `setRequireAllTokensPriced(true)`).
+
+Deploying does not register the adapter. Order on each chain:
+
+1. `make deploy-price-adapter` for each token.
+2. `make deploy-bps-verifier`, then the usual configure steps (`apply-remote-config` first).
+3. As the verifier owner: `setPriceAdapter(token, adapter)` (or `setPriceAdapters`) with
+   the recorded addresses, then `setFeeConfig` per destination.
+
 ## Address determinism
 
 Two preconditions:

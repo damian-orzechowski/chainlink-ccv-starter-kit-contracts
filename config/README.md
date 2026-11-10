@@ -179,9 +179,37 @@ setting pushed on-chain.
                                         // [] prunes it and nobody may createAndCall.
                                         // Applied by ApplyFactoryAllowlistUpdates.
     }
-  }
+  },
+  // OPTIONAL: price adapters for a BpsFeeCommitteeVerifier, one per token (unique).
+  // Constructor arguments of an ownerless, immutable contract: DeployPriceAdapter reads
+  // the entry for its TOKEN argument. Keys depend on "contract"; any other key is rejected.
+  "priceAdapters": [
+    {
+      "contract": "WstETHUSDPriceAdapter",     // Ethereum: one direct wstETH/USD feed
+      "token":    "0x...",                     // wstETH on this chain (must be 18-decimal)
+      "usdFeed":  "0x...",                     // Chainlink wstETH/USD
+      "usdMaxStaleness": 90000                 // seconds; the adapter's maxStaleness
+    },
+    {
+      "contract": "WstETHUSDL2PriceAdapter",   // L2s: wstETH/ETH x ETH/USD
+      "token":    "0x...",
+      "rateFeed": "0x...",                     // Chainlink wstETH/ETH
+      "rateMaxStaleness": 86400,
+      "usdFeed":  "0x...",                     // Chainlink ETH/USD
+      "usdMaxStaleness": 3600,
+      "sequencerUptimeFeed": "0x...",          // Chainlink L2 Sequencer Uptime Feed
+      "gracePeriod": 3600                      // seconds after sequencer recovery
+    }
+  ]
 }
 ```
+
+> **`priceAdapters` staleness**: set each bound to the feed's heartbeat **plus a buffer**;
+> a bound equal to the heartbeat reverts quotes whenever an update lands slightly late.
+> Typical values: wstETH/USD (24h heartbeat) `90000`; wstETH/ETH `86400` and ETH/USD
+> `3600`, but check each feed's heartbeat on the target L2. Staleness bounds must lie in
+> `[60, 604800]` and `gracePeriod` in `[60, 21600]` (`PriceFeedLib`); the constructor
+> reverts otherwise.
 
 > **`allowedFinality` is the ALLOWED finality** set on the verifier via
 > `setAllowedFinalityConfig`: the requests a sender may make, as alternatives. Full finality
@@ -258,6 +286,7 @@ wrong before anything referenced it — never while it carries traffic).
     {
       "versionTag": "0x00010001",  // old verifier keeps verifying in-flight messages
       "address":    "0x...",
+      "contract":   "CommitteeVerifier",  // or BpsFeeCommitteeVerifier; picks verify.sh's source
       "args": {
         "feeAggregator":    "0x...",  // mutable on-chain afterwards
         "allowlistAdmin":   "0x...",  // mutable on-chain afterwards
@@ -266,12 +295,26 @@ wrong before anything referenced it — never while it carries traffic).
       },
       "encodedArgs": "0x..."       // abi.encode(dynamicConfig, storageLocations, rmn, versionTag)
     }
+  ],
+  "priceAdapters": [               // written by DeployPriceAdapter, one entry per token
+    {
+      "contract": "WstETHUSDL2PriceAdapter",
+      "address":  "0x...",
+      "args": {                    // every key on every entry; zero where the contract takes none
+        "token": "0x...", "rateFeed": "0x...", "usdFeed": "0x...",
+        "rateMaxStaleness": 86400, "usdMaxStaleness": 3600,
+        "sequencerUptimeFeed": "0x...", "gracePeriod": 3600
+      },
+      "encodedArgs": "0x..."       // abi.encode of that contract's constructor arguments
+    }
   ]
 }
 ```
 
-Every entry is written complete by `DeployVerifier`; the loader rejects a record whose
-entries are missing their `args`/`encodedArgs` rather than reading them as zeroes.
+Every entry is written complete by `DeployVerifier` (or `DeployBpsVerifier`); the loader
+rejects a record whose entries are missing their `args`/`encodedArgs` rather than reading
+them as zeroes. `contract` is the one exception: an entry without it predates the field and
+reads as `CommitteeVerifier`.
 
 Retiring a verifier once its lanes have drained: stage an inbound update of
 `{tag, address(0)}` on the resolver, then delete the entry from the record.

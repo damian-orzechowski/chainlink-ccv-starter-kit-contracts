@@ -44,7 +44,9 @@ the target does not broadcast, or broadcasts unconditionally as EOA.
 | `make bootstrap-factory` | CREATE2Factory; must be the deployer's FIRST tx on the chain | deployer | eoa | CHAIN, RPC_URL |
 | `make deploy-resolver` | resolver via CREATE2; must land at the same address on every chain | deployer | eoa | CHAIN, RPC_URL |
 | `make deploy-verifier` | CommitteeVerifier for TAG; appends to the deployment record | deployer | eoa | CHAIN, TAG, RPC_URL |
-| `make verify` | source-verify recorded contracts; ONLY=factory\|resolver\|verifiers\|verifier:<tag> | deployer | n/a | CHAIN |
+| `make deploy-bps-verifier` | BpsFeeCommitteeVerifier for TAG; same config + record as deploy-verifier | deployer | eoa | CHAIN, TAG, RPC_URL |
+| `make deploy-price-adapter` | price adapter declared for TOKEN in the operator file; appends to the deployment record | deployer | eoa | CHAIN, RPC_URL |
+| `make verify` | source-verify recorded contracts; ONLY=factory\|resolver\|verifiers\|verifier:<tag>\|adapters\|adapter:<token> | deployer | n/a | CHAIN |
 
 ## Configure
 

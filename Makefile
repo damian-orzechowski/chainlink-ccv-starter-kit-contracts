@@ -6,7 +6,7 @@
 .PHONY: help install install-forge build build-dev clean \
         check-forge seed-operator-config \
         test sync-selftest fmt fmt-check lint lint-sh lint-typos \
-        bootstrap-factory deploy-resolver deploy-verifier verify \
+        bootstrap-factory deploy-resolver deploy-verifier deploy-bps-verifier deploy-price-adapter verify \
         apply-remote-config pause-lane apply-allowlists apply-signature-configs \
         set-dynamic-config set-finality-config update-storage-locations \
         apply-inbound apply-outbound set-fee-aggregator apply-factory-allowlist \
@@ -25,6 +25,7 @@ FOUNDRY_VERSION = 1.8.1
 CHAIN   ?=
 LANE    ?=
 TAG     ?=
+TOKEN   ?=                  # token address, for deploy-price-adapter
 SELECTOR ?=                 # CCIP chain selector, for add-chain
 TARGET  ?=                  # ownership target: verifier:<tag> | resolver | factory
 RPC_URL ?=
@@ -169,7 +170,21 @@ deploy-verifier:  ## CommitteeVerifier for TAG; appends to the deployment record
 	@FOUNDRY_PROFILE=default OUTPUT_MODE=EOA forge script script/deploy/DeployVerifier.s.sol \
 		--sig "run(string,bytes4)" $(CHAIN) $(TAG) --rpc-url $(RPC_URL) --broadcast $(SIGNER)
 
-verify:           ## source-verify recorded contracts; ONLY=factory|resolver|verifiers|verifier:<tag> | caller=deployer | mode=n/a
+deploy-bps-verifier: ## BpsFeeCommitteeVerifier for TAG; same config + record as deploy-verifier | caller=deployer | mode=eoa
+	@test -n "$(CHAIN)"   || { echo "CHAIN is required, e.g. make deploy-bps-verifier CHAIN=sepolia TAG=0x00020001"; exit 2; }
+	@test -n "$(TAG)"     || { echo "TAG is required (the verifier's bytes4 versionTag, e.g. TAG=0x00020001)"; exit 2; }
+	@test -n "$(RPC_URL)" || { echo "RPC_URL is required (that chain's endpoint)";                exit 2; }
+	@FOUNDRY_PROFILE=default OUTPUT_MODE=EOA forge script script/deploy/DeployBpsVerifier.s.sol --tc DeployBpsVerifier \
+		--sig "run(string,bytes4)" $(CHAIN) $(TAG) --rpc-url $(RPC_URL) --broadcast $(SIGNER)
+
+deploy-price-adapter: ## price adapter declared for TOKEN in the operator file; appends to the deployment record | caller=deployer | mode=eoa
+	@test -n "$(CHAIN)"   || { echo "CHAIN is required, e.g. make deploy-price-adapter CHAIN=sepolia TOKEN=0x..."; exit 2; }
+	@test -n "$(TOKEN)"   || { echo "TOKEN is required (the token the adapter prices; its priceAdapters[] entry is read from config)"; exit 2; }
+	@test -n "$(RPC_URL)" || { echo "RPC_URL is required (that chain's endpoint)";                exit 2; }
+	@FOUNDRY_PROFILE=default OUTPUT_MODE=EOA forge script script/deploy/DeployPriceAdapter.s.sol --tc DeployPriceAdapter \
+		--sig "run(string,address)" $(CHAIN) $(TOKEN) --rpc-url $(RPC_URL) --broadcast $(SIGNER)
+
+verify:           ## source-verify recorded contracts; ONLY=factory|resolver|verifiers|verifier:<tag>|adapters|adapter:<token> | caller=deployer | mode=n/a
 	@test -n "$(CHAIN)" || { echo "CHAIN is required, e.g. make verify CHAIN=sepolia"; exit 2; }
 # `origin`, not the value: an unset ONLY means "verify everything" and omits the flag,
 # while ONLY= is a target the caller meant to give and forgot, so it is passed through

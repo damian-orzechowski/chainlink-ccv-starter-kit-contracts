@@ -12,6 +12,9 @@
 #    VersionedVerifierResolver   (none)
 #    CommitteeVerifier           (DynamicConfig, string[] storageLocations, address rmn,
 #                                 bytes4 versionTag) — one deploy per recorded versionTag
+#    BpsFeeCommitteeVerifier     same constructor; each verifier entry's "contract" picks
+#                                the source (no "contract" = a plain CommitteeVerifier)
+#    WstETHUSD[L2]PriceAdapter   per "contract" in priceAdapters[] — one per recorded token
 #
 #  The record stores each contract's args pre-encoded, so nothing here reconstructs them
 #  and no constructor signature is duplicated from the Chainlink contracts.
@@ -23,6 +26,8 @@
 #    script/deploy/verify.sh <chainAlias> [--dry-run]
 #    script/deploy/verify.sh <chainAlias> --only factory|resolver|verifiers
 #    script/deploy/verify.sh <chainAlias> --only verifier:0x00010001   # one verifier by tag
+#    script/deploy/verify.sh <chainAlias> --only adapters               # every price adapter
+#    script/deploy/verify.sh <chainAlias> --only adapter:<token>        # one adapter by token
 #
 #  Env: ETHERSCAN_API_KEY  (or the per-chain key foundry.toml's [etherscan] resolves)
 #       VERIFY_PROVIDER   forge --verifier value; defaults to etherscan. Forge itself
@@ -46,7 +51,7 @@ done
 
 cd "$(dirname "$0")/../.." || exit 2
 
-USAGE="usage: verify.sh <chainAlias> [--dry-run] [--only factory|resolver|verifiers|verifier:<tag>]"
+USAGE="usage: verify.sh <chainAlias> [--dry-run] [--only factory|resolver|verifiers|verifier:<tag>|adapters|adapter:<token>]"
 
 # Every bad-input path exits 2 (the documented code), so none of them may be left to
 # `set -u` — bash reports those itself and exits 1.
@@ -66,7 +71,7 @@ while [ $# -gt 0 ]; do
             # below, so `--only ''` would verify everything — the opposite of --only.
             ONLY="${2:-}"
             if [ -z "$ONLY" ]; then
-                echo "[verify] --only needs a target: factory|resolver|verifiers|verifier:<4-byte tag>" >&2
+                echo "[verify] --only needs a target: factory|resolver|verifiers|verifier:<4-byte tag>|adapters|adapter:<token>" >&2
                 exit 2
             fi
             shift 2
@@ -76,12 +81,15 @@ while [ $# -gt 0 ]; do
 done
 
 ONLY_TAG=""
+ONLY_TOKEN=""
 case "$ONLY" in
-    "" | factory | resolver | verifiers) : ;;
+    "" | factory | resolver | verifiers | adapters) : ;;
     verifier:0x????????) ONLY_TAG="${ONLY#verifier:}" ;;
+    # Lowercased: the record holds checksummed addresses, the caller may not.
+    adapter:0x????????????????????????????????????????) ONLY_TOKEN="$(printf '%s' "${ONLY#adapter:}" | tr '[:upper:]' '[:lower:]')" ;;
     *)
         echo "[verify] unknown --only target: $ONLY" >&2
-        echo "         expected factory|resolver|verifiers|verifier:<4-byte tag>" >&2
+        echo "         expected factory|resolver|verifiers|verifier:<4-byte tag>|adapters|adapter:<token address>" >&2
         exit 2
         ;;
 esac
@@ -117,7 +125,23 @@ ZERO="0x0000000000000000000000000000000000000000"
 
 FACTORY_SRC="node_modules/@chainlink/contracts-ccip/contracts/CREATE2Factory.sol:CREATE2Factory"
 RESOLVER_SRC="node_modules/@chainlink/contracts-ccip/contracts/ccvs/VersionedVerifierResolver.sol:VersionedVerifierResolver"
-VERIFIER_SRC="node_modules/@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol:CommitteeVerifier"
+# A verifier entry's recorded "contract" -> the source forge verifies it against.
+verifier_src() {
+    case "$1" in
+        CommitteeVerifier) echo "node_modules/@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol:CommitteeVerifier" ;;
+        BpsFeeCommitteeVerifier) echo "src/bps/BpsFeeCommitteeVerifier.sol:BpsFeeCommitteeVerifier" ;;
+        *) return 1 ;;
+    esac
+}
+
+# A price adapter entry's recorded "contract" -> its source.
+adapter_src() {
+    case "$1" in
+        WstETHUSDPriceAdapter) echo "src/price-adapters/WstETHUSDPriceAdapter.sol:WstETHUSDPriceAdapter" ;;
+        WstETHUSDL2PriceAdapter) echo "src/price-adapters/WstETHUSDL2PriceAdapter.sol:WstETHUSDL2PriceAdapter" ;;
+        *) return 1 ;;
+    esac
+}
 
 # verify_one <label> <contract> <address> <encodedArgs|"-"|"MISSING">
 #   Address and encoded args both come from the record, so the two can never disagree.
@@ -161,18 +185,48 @@ rc=0
 
 if [ -z "$ONLY" ] || [ "$ONLY" = "verifiers" ] || [ -n "$ONLY_TAG" ]; then
     found=""
-    while IFS=$'\t' read -r tag vaddr encoded; do
+    while IFS=$'\t' read -r tag vaddr contract encoded; do
         [ -n "$tag" ] || continue
         [ -n "$ONLY_TAG" ] && [ "$tag" != "$ONLY_TAG" ] && continue
         found="yes"
-        verify_one "verifier $tag" "$VERIFIER_SRC" "$vaddr" "$encoded" || rc=1
-    done < <(jq -r '.verifiers[]? | [.versionTag, .address, (.encodedArgs // "MISSING")] | @tsv' "$DEPLOY_FILE")
+        if ! src="$(verifier_src "$contract")"; then
+            echo "  FAIL verifier $tag $vaddr: unknown contract \"$contract\" in $DEPLOY_FILE" >&2
+            rc=1
+            continue
+        fi
+        verify_one "verifier $tag ($contract)" "$src" "$vaddr" "$encoded" || rc=1
+    done < <(jq -r '.verifiers[]? | [.versionTag, .address, (.contract // "CommitteeVerifier"), (.encodedArgs // "MISSING")] | @tsv' "$DEPLOY_FILE")
     if [ -z "$found" ]; then
         if [ -n "$ONLY_TAG" ]; then
             echo "[verify] no verifier with versionTag $ONLY_TAG recorded in $DEPLOY_FILE" >&2
             rc=1
         else
             echo "  SKIP verifiers: none recorded in $DEPLOY_FILE"
+        fi
+    fi
+fi
+
+if [ -z "$ONLY" ] || [ "$ONLY" = "adapters" ] || [ -n "$ONLY_TOKEN" ]; then
+    found=""
+    while IFS=$'\t' read -r token aaddr contract encoded; do
+        [ -n "$token" ] || continue
+        if [ -n "$ONLY_TOKEN" ] && [ "$(printf '%s' "$token" | tr '[:upper:]' '[:lower:]')" != "$ONLY_TOKEN" ]; then
+            continue
+        fi
+        found="yes"
+        if ! src="$(adapter_src "$contract")"; then
+            echo "  FAIL price adapter for $token $aaddr: unknown contract \"$contract\" in $DEPLOY_FILE" >&2
+            rc=1
+            continue
+        fi
+        verify_one "price adapter $token ($contract)" "$src" "$aaddr" "$encoded" || rc=1
+    done < <(jq -r '.priceAdapters[]? | [.args.token, .address, .contract, (.encodedArgs // "MISSING")] | @tsv' "$DEPLOY_FILE")
+    if [ -z "$found" ]; then
+        if [ -n "$ONLY_TOKEN" ]; then
+            echo "[verify] no price adapter for token $ONLY_TOKEN recorded in $DEPLOY_FILE" >&2
+            rc=1
+        else
+            echo "  SKIP price adapters: none recorded in $DEPLOY_FILE"
         fi
     fi
 fi

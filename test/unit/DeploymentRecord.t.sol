@@ -79,6 +79,45 @@ contract DeploymentRecordTest is Test {
     vm.removeFile(path);
   }
 
+  /// @dev verify.sh picks each verifier's source from this field, so it must survive the
+  ///      round trip per entry.
+  function test_writeRead_roundTripsContractName() public {
+    string memory path = _path("contract-name");
+    ConfigLib.writeDeploymentByPath(path, _record());
+
+    Types.Deployment memory got = ConfigLib.readDeploymentByPath(path);
+
+    assertEq(got.verifiers[0].contractName, "CommitteeVerifier");
+    assertEq(got.verifiers[1].contractName, "BpsFeeCommitteeVerifier", "second entry keeps its own implementation");
+
+    vm.removeFile(path);
+  }
+
+  /// @dev An unset name is written as the default rather than as "", so the file always
+  ///      says what verify.sh will verify against.
+  function test_write_unsetContractNameWritesTheDefault() public {
+    string memory path = _path("contract-name-unset");
+    Types.Deployment memory d = _record();
+    d.verifiers[0].contractName = "";
+    ConfigLib.writeDeploymentByPath(path, d);
+
+    assertEq(vm.parseJsonString(vm.readFile(path), ".verifiers[0].contract"), "CommitteeVerifier");
+
+    vm.removeFile(path);
+  }
+
+  /// @dev Records written before the field existed only ever held a CommitteeVerifier.
+  function test_read_entryWithoutContractReadsAsCommitteeVerifier() public {
+    string memory path = _path("contract-name-legacy");
+    vm.writeFile(path, _rawRecord(string.concat("[", _rawEntry("0x00010001", vm.toString(VERIFIER)), "]")));
+
+    Types.Deployment memory got = ConfigLib.readDeploymentByPath(path);
+
+    assertEq(got.verifiers[0].contractName, "CommitteeVerifier");
+
+    vm.removeFile(path);
+  }
+
   /// @dev The load-bearing invariant behind recording both forms: `encodedArgs` is what
   ///      verify.sh hands to forge verify-contract, and the plain fields are what the
   ///      deployments page shows. They must describe the same deployment.
@@ -337,6 +376,7 @@ contract DeploymentRecordTest is Test {
     d.verifiers = new Types.VerifierDeployment[](2);
     d.verifiers[0] = _entry(VERSION_TAG, VERIFIER);
     d.verifiers[1] = _entry(SECOND_TAG, SECOND_VERIFIER);
+    d.verifiers[1].contractName = "BpsFeeCommitteeVerifier";
   }
 
   function _entry(
@@ -346,6 +386,7 @@ contract DeploymentRecordTest is Test {
     return Types.VerifierDeployment({
       versionTag: versionTag,
       addr: addr,
+      contractName: "CommitteeVerifier",
       feeAggregator: FEE_AGGREGATOR,
       allowlistAdmin: ALLOWLIST_ADMIN,
       storageLocations: _storageLocations(),
