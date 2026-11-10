@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import { Test } from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import { WstETHUSDL2PriceAdapter } from "../src/price-adapters/WstETHUSDL2PriceAdapter.sol";
-import { PriceFeedLib } from "../src/price-adapters/PriceFeedLib.sol";
+import {PriceFeedLib} from "../src/price-adapters/PriceFeedLib.sol";
+import {WstETHUSDL2PriceAdapter} from "../src/price-adapters/WstETHUSDL2PriceAdapter.sol";
 
-import { MockAggregatorV3 } from "./mocks/MockAggregatorV3.sol";
-import { MockWstETH } from "./mocks/MockWstETH.sol";
+import {MockAggregatorV3} from "./mocks/MockAggregatorV3.sol";
+import {MockWstETH} from "./mocks/MockWstETH.sol";
 
 /// @notice Unit tests for the L2 wstETH -> USD-cents adapter (two-feed composition).
 contract WstETHUSDL2PriceAdapterTest is Test {
@@ -33,13 +33,14 @@ contract WstETHUSDL2PriceAdapterTest is Test {
   }
 
   /// @dev Deploy helper
-  function _deploy(uint256 rateMax, uint256 usdMax, address seq, uint256 grace)
-    internal
-    returns (WstETHUSDL2PriceAdapter)
-  {
-    return new WstETHUSDL2PriceAdapter(
-      address(wstETH), address(rateFeed), address(usdFeed), rateMax, usdMax, seq, grace
-    );
+  function _deploy(
+    uint256 rateMax,
+    uint256 usdMax,
+    address seq,
+    uint256 grace
+  ) internal returns (WstETHUSDL2PriceAdapter) {
+    return
+      new WstETHUSDL2PriceAdapter(address(wstETH), address(rateFeed), address(usdFeed), rateMax, usdMax, seq, grace);
   }
 
   function test_metadata() public view {

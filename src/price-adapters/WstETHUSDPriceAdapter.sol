@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import { IPriceAdapter } from "./IPriceAdapter.sol";
-import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
-import { PriceFeedLib } from "./PriceFeedLib.sol";
+import {IPriceAdapter} from "./IPriceAdapter.sol";
+import {PriceFeedLib} from "./PriceFeedLib.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 interface IERC20Decimals {
   function decimals() external view returns (uint8);
@@ -36,7 +36,11 @@ contract WstETHUSDPriceAdapter is IPriceAdapter {
   /// @param wstETH        the wstETH token this adapter prices (must be 18-decimal).
   /// @param usdFeed       Chainlink wstETH/USD aggregator.
   /// @param maxStaleness  max age (seconds) accepted for the feed's round.
-  constructor(address wstETH, address usdFeed, uint256 maxStaleness) {
+  constructor(
+    address wstETH,
+    address usdFeed,
+    uint256 maxStaleness
+  ) {
     if (wstETH == address(0) || usdFeed == address(0)) revert ZeroAddress();
     PriceFeedLib.requireValidStaleness(maxStaleness);
     TOKEN = wstETH;
@@ -49,7 +53,9 @@ contract WstETHUSDPriceAdapter is IPriceAdapter {
   }
 
   /// @inheritdoc IPriceAdapter
-  function getValueInUSDCents(uint256 amount) external view virtual returns (uint256) {
+  function getValueInUSDCents(
+    uint256 amount
+  ) external view virtual returns (uint256) {
     // wstETH -> USD cents: amount/1e18 * usdPrice/10^dec * 100
     uint256 usdPrice = USD_FEED.readFresh(MAX_STALENESS);
     return (amount * usdPrice * CENTS_PER_USD) / (WAD * (10 ** USD_FEED_DECIMALS));

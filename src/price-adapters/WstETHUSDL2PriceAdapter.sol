@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import { IPriceAdapter } from "./IPriceAdapter.sol";
-import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
-import { PriceFeedLib } from "./PriceFeedLib.sol";
+import {IPriceAdapter} from "./IPriceAdapter.sol";
+import {PriceFeedLib} from "./PriceFeedLib.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 interface IERC20Decimals {
   function decimals() external view returns (uint8);
@@ -58,7 +58,9 @@ contract WstETHUSDL2PriceAdapter is IPriceAdapter {
     address sequencerUptimeFeed,
     uint256 gracePeriod
   ) {
-    if (wstETH == address(0) || rateFeed == address(0) || usdFeed == address(0) || sequencerUptimeFeed == address(0)) revert ZeroAddress();
+    if (wstETH == address(0) || rateFeed == address(0) || usdFeed == address(0) || sequencerUptimeFeed == address(0)) {
+      revert ZeroAddress();
+    }
 
     PriceFeedLib.requireValidStaleness(rateMaxStaleness);
     PriceFeedLib.requireValidStaleness(usdMaxStaleness);
@@ -78,7 +80,9 @@ contract WstETHUSDL2PriceAdapter is IPriceAdapter {
   }
 
   /// @inheritdoc IPriceAdapter
-  function getValueInUSDCents(uint256 amount) external view virtual returns (uint256) {
+  function getValueInUSDCents(
+    uint256 amount
+  ) external view virtual returns (uint256) {
     // Reject reads while the L2 sequencer is down or in its post-recovery grace period
     PriceFeedLib.requireSequencerUp(SEQUENCER_UPTIME_FEED, GRACE_PERIOD);
     // wstETH -> ETH wei: amount * rate / 10^rateDecimals

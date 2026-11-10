@@ -2,14 +2,14 @@
 // SPDX-FileCopyrightText: 2026 SmartContract Chainlink Limited SEZC with contributions from Demerzel Solutions Limited
 pragma solidity ^0.8.26;
 
-import { CommitteeVerifier } from "@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol";
-import { BaseVerifier } from "@chainlink/contracts-ccip/contracts/ccvs/components/BaseVerifier.sol";
-import { ICrossChainVerifierV1 } from "@chainlink/contracts-ccip/contracts/interfaces/ICrossChainVerifierV1.sol";
-import { Client } from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
-import { FinalityCodec } from "@chainlink/contracts-ccip/contracts/libraries/FinalityCodec.sol";
+import {CommitteeVerifier} from "@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol";
+import {BaseVerifier} from "@chainlink/contracts-ccip/contracts/ccvs/components/BaseVerifier.sol";
+import {ICrossChainVerifierV1} from "@chainlink/contracts-ccip/contracts/interfaces/ICrossChainVerifierV1.sol";
+import {Client} from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
+import {FinalityCodec} from "@chainlink/contracts-ccip/contracts/libraries/FinalityCodec.sol";
 
-import { BpsFeeConfig } from "./BpsFeeConfig.sol";
-import { IPriceAdapter } from "./../price-adapters/IPriceAdapter.sol";
+import {IPriceAdapter} from "./../price-adapters/IPriceAdapter.sol";
+import {BpsFeeConfig} from "./BpsFeeConfig.sol";
 
 /// @title BpsFeeCommitteeVerifier
 /// @notice A thin {CommitteeVerifier} subclass that charges the CCV operator a
@@ -69,9 +69,12 @@ contract BpsFeeCommitteeVerifier is CommitteeVerifier {
   /// @param storageLocations  inherited BaseVerifier storage locations
   /// @param rmn               RMN address
   /// @param versionTag        distinct version tag for resolver registration (Section 3)
-  constructor(DynamicConfig memory dynamicConfig, string[] memory storageLocations, address rmn, bytes4 versionTag)
-    CommitteeVerifier(dynamicConfig, storageLocations, rmn, versionTag)
-  { }
+  constructor(
+    DynamicConfig memory dynamicConfig,
+    string[] memory storageLocations,
+    address rmn,
+    bytes4 versionTag
+  ) CommitteeVerifier(dynamicConfig, storageLocations, rmn, versionTag) {}
 
   // ---------------------------------------------------------------------------
   // Fee override — THE single point of change (scoping doc Section 2)
@@ -154,7 +157,10 @@ contract BpsFeeCommitteeVerifier is CommitteeVerifier {
   // ---------------------------------------------------------------------------
 
   /// @notice Set (or update) the bps fee policy for a destination chain.
-  function setFeeConfig(uint64 destChainSelector, BpsFeeConfig calldata config) external onlyOwner {
+  function setFeeConfig(
+    uint64 destChainSelector,
+    BpsFeeConfig calldata config
+  ) external onlyOwner {
     if (config.enabled && config.minFeeUSDCents == 0) revert MinFeeMustBeNonZero();
     if (config.feeBps > 10_000) revert FeeBpsTooHigh(config.feeBps);
     if (config.capUSDCents < config.minFeeUSDCents) revert CapBelowFloor(config.capUSDCents, config.minFeeUSDCents);
@@ -166,26 +172,37 @@ contract BpsFeeCommitteeVerifier is CommitteeVerifier {
   }
 
   /// @notice Set the fail-open/fail-closed posture for unpriced tokens.
-  function setRequireAllTokensPriced(bool required) external onlyOwner {
+  function setRequireAllTokensPriced(
+    bool required
+  ) external onlyOwner {
     s_requireAllTokensPriced = required;
     emit RequireAllTokensPricedSet(required);
   }
 
   /// @notice Register (or clear) the price adapter for a token. Pass
   ///         `adapter == address(0)` to unregister.
-  function setPriceAdapter(address token, IPriceAdapter adapter) external onlyOwner {
+  function setPriceAdapter(
+    address token,
+    IPriceAdapter adapter
+  ) external onlyOwner {
     _setPriceAdapter(token, adapter);
   }
 
   /// @notice Batch variant of setPriceAdapter.
-  function setPriceAdapters(address[] calldata tokens, IPriceAdapter[] calldata adapters) external onlyOwner {
+  function setPriceAdapters(
+    address[] calldata tokens,
+    IPriceAdapter[] calldata adapters
+  ) external onlyOwner {
     if (tokens.length != adapters.length) revert LengthMismatch();
     for (uint256 i = 0; i < tokens.length; ++i) {
       _setPriceAdapter(tokens[i], adapters[i]);
     }
   }
 
-  function _setPriceAdapter(address token, IPriceAdapter adapter) internal {
+  function _setPriceAdapter(
+    address token,
+    IPriceAdapter adapter
+  ) internal {
     if (token == address(0)) revert ZeroToken();
     // When registering (not clearing), the adapter must price exactly this token.
     if (address(adapter) != address(0)) {
@@ -197,12 +214,16 @@ contract BpsFeeCommitteeVerifier is CommitteeVerifier {
   }
 
   /// @notice Read the bps fee policy for a destination chain.
-  function getFeeConfig(uint64 destChainSelector) external view returns (BpsFeeConfig memory) {
+  function getFeeConfig(
+    uint64 destChainSelector
+  ) external view returns (BpsFeeConfig memory) {
     return s_feeConfig[destChainSelector];
   }
 
   /// @notice Read the price adapter registered for a token (address(0) if none).
-  function getPriceAdapter(address token) external view returns (IPriceAdapter) {
+  function getPriceAdapter(
+    address token
+  ) external view returns (IPriceAdapter) {
     return s_priceAdapter[token];
   }
 
@@ -214,7 +235,9 @@ contract BpsFeeCommitteeVerifier is CommitteeVerifier {
   /// @notice Off-chain monitoring aid: return the transferred tokens in
   ///         `message` that have NO registered price adapter and would
   ///         therefore contribute zero value under the fail-open policy.
-  function getUnpricedTokens(Client.EVM2AnyMessage memory message) external view returns (address[] memory unpriced) {
+  function getUnpricedTokens(
+    Client.EVM2AnyMessage memory message
+  ) external view returns (address[] memory unpriced) {
     uint256 nTokens = message.tokenAmounts.length;
     uint256 count;
     for (uint256 i = 0; i < nTokens; ++i) {
