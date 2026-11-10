@@ -2,21 +2,21 @@
 // SPDX-FileCopyrightText: 2026 SmartContract Chainlink Limited SEZC with contributions from Demerzel Solutions Limited
 pragma solidity ^0.8.26;
 
-import { Test } from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import { BpsFeeCommitteeVerifier } from "../../src/bps/BpsFeeCommitteeVerifier.sol";
-import { BpsFeeConfig } from "../../src/bps/BpsFeeConfig.sol";
-import { IPriceAdapter } from "../../src/price-adapters/IPriceAdapter.sol";
-import { WstETHUSDPriceAdapter } from "../../src/price-adapters/WstETHUSDPriceAdapter.sol";
+import {BpsFeeCommitteeVerifier} from "../../src/bps/BpsFeeCommitteeVerifier.sol";
+import {BpsFeeConfig} from "../../src/bps/BpsFeeConfig.sol";
+import {IPriceAdapter} from "../../src/price-adapters/IPriceAdapter.sol";
+import {WstETHUSDPriceAdapter} from "../../src/price-adapters/WstETHUSDPriceAdapter.sol";
 
-import { CommitteeVerifier } from "@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol";
-import { BaseVerifier } from "@chainlink/contracts-ccip/contracts/ccvs/components/BaseVerifier.sol";
-import { IRouter } from "@chainlink/contracts-ccip/contracts/interfaces/IRouter.sol";
-import { Client } from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
+import {CommitteeVerifier} from "@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol";
+import {BaseVerifier} from "@chainlink/contracts-ccip/contracts/ccvs/components/BaseVerifier.sol";
+import {IRouter} from "@chainlink/contracts-ccip/contracts/interfaces/IRouter.sol";
+import {Client} from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
 
-import { MockPriceAdapter } from "../mocks/MockPriceAdapter.sol";
-import { MockAggregatorV3 } from "../mocks/MockAggregatorV3.sol";
-import { MockWstETH } from "../mocks/MockWstETH.sol";
+import {MockAggregatorV3} from "../mocks/MockAggregatorV3.sol";
+import {MockPriceAdapter} from "../mocks/MockPriceAdapter.sol";
+import {MockWstETH} from "../mocks/MockWstETH.sol";
 
 /// @notice Proves the off-chain fee-accounting recipe (docs/ACCOUNTING.md) is
 ///         sound on-chain:
@@ -55,7 +55,7 @@ contract AccountingReconstructionTest is Test {
   function setUp() public {
     vm.warp(START_TS);
     verifier = new BpsFeeCommitteeVerifier(
-      CommitteeVerifier.DynamicConfig({ feeAggregator: makeAddr("agg"), allowlistAdmin: makeAddr("admin") }),
+      CommitteeVerifier.DynamicConfig({feeAggregator: makeAddr("agg"), allowlistAdmin: makeAddr("admin")}),
       new string[](0),
       makeAddr("rmn"),
       bytes4(uint32(1))
@@ -63,7 +63,7 @@ contract AccountingReconstructionTest is Test {
     _setBase(DEST, FLAT_FEE);
     _setBase(DEST_FLAT, FLAT_FEE);
     verifier.setFeeConfig(
-      DEST, BpsFeeConfig({ feeBps: FEE_BPS, minFeeUSDCents: MIN_CENTS, capUSDCents: CAP_CENTS, enabled: true })
+      DEST, BpsFeeConfig({feeBps: FEE_BPS, minFeeUSDCents: MIN_CENTS, capUSDCents: CAP_CENTS, enabled: true})
     );
 
     wstETH = new MockWstETH();
@@ -76,7 +76,10 @@ contract AccountingReconstructionTest is Test {
     verifier.setPriceAdapter(token2, IPriceAdapter(address(adapter2)));
   }
 
-  function _setBase(uint64 dest, uint16 flatFee) internal {
+  function _setBase(
+    uint64 dest,
+    uint16 flatFee
+  ) internal {
     BaseVerifier.RemoteChainConfigArgs[] memory a = new BaseVerifier.RemoteChainConfigArgs[](1);
     a[0] = BaseVerifier.RemoteChainConfigArgs({
       router: IRouter(makeAddr("router")),
@@ -95,32 +98,42 @@ contract AccountingReconstructionTest is Test {
     m.tokenAmounts = new Client.EVMTokenAmount[](0);
   }
 
-  function _msg1(address t, uint256 a) internal pure returns (Client.EVM2AnyMessage memory m) {
+  function _msg1(
+    address t,
+    uint256 a
+  ) internal pure returns (Client.EVM2AnyMessage memory m) {
     m = _empty();
     m.tokenAmounts = new Client.EVMTokenAmount[](1);
-    m.tokenAmounts[0] = Client.EVMTokenAmount({ token: t, amount: a });
+    m.tokenAmounts[0] = Client.EVMTokenAmount({token: t, amount: a});
   }
 
-  function _msg2(address t0, uint256 a0, address t1, uint256 a1)
-    internal
-    pure
-    returns (Client.EVM2AnyMessage memory m)
-  {
+  function _msg2(
+    address t0,
+    uint256 a0,
+    address t1,
+    uint256 a1
+  ) internal pure returns (Client.EVM2AnyMessage memory m) {
     m = _empty();
     m.tokenAmounts = new Client.EVMTokenAmount[](2);
-    m.tokenAmounts[0] = Client.EVMTokenAmount({ token: t0, amount: a0 });
-    m.tokenAmounts[1] = Client.EVMTokenAmount({ token: t1, amount: a1 });
+    m.tokenAmounts[0] = Client.EVMTokenAmount({token: t0, amount: a0});
+    m.tokenAmounts[1] = Client.EVMTokenAmount({token: t1, amount: a1});
   }
 
   // --- on-chain vs off-chain-reconstruction ----------------------------------
 
-  function _onchain(uint64 dest, Client.EVM2AnyMessage memory m) internal view returns (uint16 fee) {
+  function _onchain(
+    uint64 dest,
+    Client.EVM2AnyMessage memory m
+  ) internal view returns (uint16 fee) {
     (fee,,) = verifier.getFee(dest, m, "", bytes4(0));
   }
 
   /// @dev The documented off-chain reconstruction, using ONLY public getters.
   ///      An indexer implementing ACCOUNTING.md runs exactly this.
-  function _reconstruct(uint64 dest, Client.EVM2AnyMessage memory m) internal view returns (uint16) {
+  function _reconstruct(
+    uint64 dest,
+    Client.EVM2AnyMessage memory m
+  ) internal view returns (uint16) {
     BpsFeeConfig memory c = verifier.getFeeConfig(dest);
     if (!c.enabled) {
       (BaseVerifier.RemoteChainConfigArgs memory rc,) = verifier.getRemoteChainConfig(dest);
@@ -142,7 +155,10 @@ contract AccountingReconstructionTest is Test {
     return uint16(fee);
   }
 
-  function _assertParity(uint64 dest, Client.EVM2AnyMessage memory m) internal view {
+  function _assertParity(
+    uint64 dest,
+    Client.EVM2AnyMessage memory m
+  ) internal view {
     assertEq(_reconstruct(dest, m), _onchain(dest, m), "reconstruction == getFee");
   }
 
@@ -176,7 +192,9 @@ contract AccountingReconstructionTest is Test {
     _assertParity(DEST_FLAT, _msg1(token1, 1e18));
   }
 
-  function testFuzz_parity(uint256 amount) public view {
+  function testFuzz_parity(
+    uint256 amount
+  ) public view {
     amount = bound(amount, 0, 1e33);
     _assertParity(DEST, _msg1(token1, amount));
   }

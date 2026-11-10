@@ -2,19 +2,19 @@
 // SPDX-FileCopyrightText: 2026 SmartContract Chainlink Limited SEZC with contributions from Demerzel Solutions Limited
 pragma solidity ^0.8.26;
 
-import { Test } from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import { BpsFeeCommitteeVerifier } from "../src/bps/BpsFeeCommitteeVerifier.sol";
-import { BpsFeeConfig } from "../src/bps/BpsFeeConfig.sol";
-import { IPriceAdapter } from "../src/price-adapters/IPriceAdapter.sol";
+import {BpsFeeCommitteeVerifier} from "../src/bps/BpsFeeCommitteeVerifier.sol";
+import {BpsFeeConfig} from "../src/bps/BpsFeeConfig.sol";
+import {IPriceAdapter} from "../src/price-adapters/IPriceAdapter.sol";
 
-import { CommitteeVerifier } from "@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol";
-import { BaseVerifier } from "@chainlink/contracts-ccip/contracts/ccvs/components/BaseVerifier.sol";
-import { IRouter } from "@chainlink/contracts-ccip/contracts/interfaces/IRouter.sol";
-import { Client } from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
-import { FinalityCodec } from "@chainlink/contracts-ccip/contracts/libraries/FinalityCodec.sol";
+import {CommitteeVerifier} from "@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol";
+import {BaseVerifier} from "@chainlink/contracts-ccip/contracts/ccvs/components/BaseVerifier.sol";
+import {IRouter} from "@chainlink/contracts-ccip/contracts/interfaces/IRouter.sol";
+import {Client} from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
+import {FinalityCodec} from "@chainlink/contracts-ccip/contracts/libraries/FinalityCodec.sol";
 
-import { MockPriceAdapter } from "./mocks/MockPriceAdapter.sol";
+import {MockPriceAdapter} from "./mocks/MockPriceAdapter.sol";
 
 /// @notice Unit tests for the bps + floor + cap fee override and its config
 ///         administration. Deploys the real verifier (dummy constructor args)
@@ -48,7 +48,7 @@ contract BpsFeeCommitteeVerifierTest is Test {
 
   function setUp() public {
     CommitteeVerifier.DynamicConfig memory dc =
-      CommitteeVerifier.DynamicConfig({ feeAggregator: makeAddr("agg"), allowlistAdmin: makeAddr("allowlistAdmin") });
+      CommitteeVerifier.DynamicConfig({feeAggregator: makeAddr("agg"), allowlistAdmin: makeAddr("allowlistAdmin")});
 
     verifier = new BpsFeeCommitteeVerifier(
       dc,
@@ -79,7 +79,7 @@ contract BpsFeeCommitteeVerifierTest is Test {
 
     // bps policy on DEST only.
     verifier.setFeeConfig(
-      DEST, BpsFeeConfig({ feeBps: FEE_BPS, minFeeUSDCents: MIN_CENTS, capUSDCents: CAP_CENTS, enabled: true })
+      DEST, BpsFeeConfig({feeBps: FEE_BPS, minFeeUSDCents: MIN_CENTS, capUSDCents: CAP_CENTS, enabled: true})
     );
 
     // Per-token adapters.
@@ -99,24 +99,31 @@ contract BpsFeeCommitteeVerifierTest is Test {
     m.extraArgs = "";
   }
 
-  function _msg(address token, uint256 amount) internal pure returns (Client.EVM2AnyMessage memory m) {
+  function _msg(
+    address token,
+    uint256 amount
+  ) internal pure returns (Client.EVM2AnyMessage memory m) {
     m = _emptyMsg();
     m.tokenAmounts = new Client.EVMTokenAmount[](1);
-    m.tokenAmounts[0] = Client.EVMTokenAmount({ token: token, amount: amount });
+    m.tokenAmounts[0] = Client.EVMTokenAmount({token: token, amount: amount});
   }
 
-  function _msg2(address t0, uint256 a0, address t1, uint256 a1)
-    internal
-    pure
-    returns (Client.EVM2AnyMessage memory m)
-  {
+  function _msg2(
+    address t0,
+    uint256 a0,
+    address t1,
+    uint256 a1
+  ) internal pure returns (Client.EVM2AnyMessage memory m) {
     m = _emptyMsg();
     m.tokenAmounts = new Client.EVMTokenAmount[](2);
-    m.tokenAmounts[0] = Client.EVMTokenAmount({ token: t0, amount: a0 });
-    m.tokenAmounts[1] = Client.EVMTokenAmount({ token: t1, amount: a1 });
+    m.tokenAmounts[0] = Client.EVMTokenAmount({token: t0, amount: a0});
+    m.tokenAmounts[1] = Client.EVMTokenAmount({token: t1, amount: a1});
   }
 
-  function _fee(uint64 dest, Client.EVM2AnyMessage memory m) internal view returns (uint16 feeUSDCents) {
+  function _fee(
+    uint64 dest,
+    Client.EVM2AnyMessage memory m
+  ) internal view returns (uint16 feeUSDCents) {
     (feeUSDCents,,) = verifier.getFee(dest, m, "", bytes4(0));
   }
 
@@ -174,7 +181,9 @@ contract BpsFeeCommitteeVerifierTest is Test {
     assertEq(fee, CAP_CENTS);
   }
 
-  function testFuzz_getFee_withinBounds(uint256 amount) public view {
+  function testFuzz_getFee_withinBounds(
+    uint256 amount
+  ) public view {
     amount = bound(amount, 0, 1e33);
     uint16 fee = _fee(DEST, _msg(tokenA, amount));
     assertLe(fee, CAP_CENTS, "never above cap");
@@ -186,7 +195,7 @@ contract BpsFeeCommitteeVerifierTest is Test {
   function test_setFeeConfig_onlyOwner() public {
     vm.prank(stranger);
     vm.expectRevert();
-    verifier.setFeeConfig(DEST, BpsFeeConfig({ feeBps: 1, minFeeUSDCents: 1, capUSDCents: 2, enabled: true }));
+    verifier.setFeeConfig(DEST, BpsFeeConfig({feeBps: 1, minFeeUSDCents: 1, capUSDCents: 2, enabled: true}));
   }
 
   function test_setPriceAdapter_onlyOwner() public {
@@ -209,12 +218,12 @@ contract BpsFeeCommitteeVerifierTest is Test {
 
   function test_setFeeConfig_revertsWhenCapBelowFloor() public {
     vm.expectRevert(abi.encodeWithSelector(BpsFeeCommitteeVerifier.CapBelowFloor.selector, uint16(50), uint16(100)));
-    verifier.setFeeConfig(DEST, BpsFeeConfig({ feeBps: 5, minFeeUSDCents: 100, capUSDCents: 50, enabled: true }));
+    verifier.setFeeConfig(DEST, BpsFeeConfig({feeBps: 5, minFeeUSDCents: 100, capUSDCents: 50, enabled: true}));
   }
 
   function test_setFeeConfig_revertsWhenFeeBpsTooHigh() public {
     vm.expectRevert(abi.encodeWithSelector(BpsFeeCommitteeVerifier.FeeBpsTooHigh.selector, uint16(10_001)));
-    verifier.setFeeConfig(DEST, BpsFeeConfig({ feeBps: 10_001, minFeeUSDCents: 1, capUSDCents: 2, enabled: true }));
+    verifier.setFeeConfig(DEST, BpsFeeConfig({feeBps: 10_001, minFeeUSDCents: 1, capUSDCents: 2, enabled: true}));
   }
 
   function test_getFee_revertsForUnconfiguredChain() public {
@@ -224,15 +233,13 @@ contract BpsFeeCommitteeVerifierTest is Test {
 
   function test_setFeeConfig_revertsWhenEnablingUnconfiguredLane() public {
     vm.expectRevert(abi.encodeWithSelector(BaseVerifier.RemoteChainNotSupported.selector, UNCONFIGURED));
-    verifier.setFeeConfig(
-      UNCONFIGURED, BpsFeeConfig({ feeBps: 5, minFeeUSDCents: 10, capUSDCents: 1000, enabled: true })
-    );
+    verifier.setFeeConfig(UNCONFIGURED, BpsFeeConfig({feeBps: 5, minFeeUSDCents: 10, capUSDCents: 1000, enabled: true}));
   }
 
   function test_setFeeConfig_allowsDisablingUnconfiguredLane() public {
     // Disabling a lane never needs a base config (the check is enabled-only).
     verifier.setFeeConfig(
-      UNCONFIGURED, BpsFeeConfig({ feeBps: 5, minFeeUSDCents: 10, capUSDCents: 1000, enabled: false })
+      UNCONFIGURED, BpsFeeConfig({feeBps: 5, minFeeUSDCents: 10, capUSDCents: 1000, enabled: false})
     );
     assertFalse(verifier.getFeeConfig(UNCONFIGURED).enabled);
   }
@@ -254,21 +261,19 @@ contract BpsFeeCommitteeVerifierTest is Test {
 
   function test_setFeeConfig_revertsWhenEnabledWithZeroFloor() public {
     vm.expectRevert(BpsFeeCommitteeVerifier.MinFeeMustBeNonZero.selector);
-    verifier.setFeeConfig(DEST, BpsFeeConfig({ feeBps: 5, minFeeUSDCents: 0, capUSDCents: 1000, enabled: true }));
+    verifier.setFeeConfig(DEST, BpsFeeConfig({feeBps: 5, minFeeUSDCents: 0, capUSDCents: 1000, enabled: true}));
   }
 
   function test_setFeeConfig_allowsZeroFloorWhenDisabled() public {
     // Disabled lanes fall back to the inherited flat fee, so a zero floor is fine.
-    verifier.setFeeConfig(
-      DEST_FLAT, BpsFeeConfig({ feeBps: 5, minFeeUSDCents: 0, capUSDCents: 1000, enabled: false })
-    );
+    verifier.setFeeConfig(DEST_FLAT, BpsFeeConfig({feeBps: 5, minFeeUSDCents: 0, capUSDCents: 1000, enabled: false}));
     assertFalse(verifier.getFeeConfig(DEST_FLAT).enabled);
     assertEq(verifier.getFeeConfig(DEST_FLAT).minFeeUSDCents, 0);
   }
 
   function test_setFeeConfig_allowsZeroBpsWithNonZeroFloor() public {
     // feeBps == 0 with a non-zero floor is a legitimate flat-fee-via-floor lane.
-    verifier.setFeeConfig(DEST, BpsFeeConfig({ feeBps: 0, minFeeUSDCents: 10, capUSDCents: 1000, enabled: true }));
+    verifier.setFeeConfig(DEST, BpsFeeConfig({feeBps: 0, minFeeUSDCents: 10, capUSDCents: 1000, enabled: true}));
     assertEq(verifier.getFeeConfig(DEST).feeBps, 0);
     assertTrue(verifier.getFeeConfig(DEST).enabled);
   }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import { IPriceAdapter } from "../../src/price-adapters/IPriceAdapter.sol";
+import {IPriceAdapter} from "../../src/price-adapters/IPriceAdapter.sol";
 
 /// @notice Deterministic linear price adapter for unit tests.
 /// @dev    value = amount * usdCentsPerToken / 1e18, so `usdCentsPerToken` is the
@@ -14,16 +14,23 @@ contract MockPriceAdapter is IPriceAdapter {
 
   error MockAdapterReverted();
 
-  constructor(address token_, uint256 usdCentsPerToken_) {
+  constructor(
+    address token_,
+    uint256 usdCentsPerToken_
+  ) {
     TOKEN = token_;
     usdCentsPerToken = usdCentsPerToken_;
   }
 
-  function setUsdCentsPerToken(uint256 v) external {
+  function setUsdCentsPerToken(
+    uint256 v
+  ) external {
     usdCentsPerToken = v;
   }
 
-  function setShouldRevert(bool v) external {
+  function setShouldRevert(
+    bool v
+  ) external {
     shouldRevert = v;
   }
 
@@ -35,7 +42,9 @@ contract MockPriceAdapter is IPriceAdapter {
     return 18;
   }
 
-  function getValueInUSDCents(uint256 amount) external view returns (uint256) {
+  function getValueInUSDCents(
+    uint256 amount
+  ) external view returns (uint256) {
     if (shouldRevert) revert MockAdapterReverted();
     return (amount * usdCentsPerToken) / 1e18;
   }
