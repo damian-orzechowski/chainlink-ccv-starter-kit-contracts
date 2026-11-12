@@ -159,6 +159,13 @@ Writes every live role holder and verifier setting to `out/governance/` for revi
 can be promoted into `config/operator/chains/<alias>.json` once confirmed. Useful when adopting a deployment whose
 intended roles were never written down.
 
+On a chain with a `BpsFeeCommitteeVerifier`, the snapshot also captures that verifier's
+`requireAllTokensPriced` and rebuilds `priceAdapters[]` from the adapters the verifier uses,
+read back from each adapter's immutables. The verifier keeps adapters in a mapping it
+cannot list, so only tokens named by the deployment record or the current operator file
+are looked up: an adapter registered by hand for any other token is not captured. Anything
+the snapshot cannot read from chain keeps its declared entry, with a `NOTE` in the output.
+
 ## These checks are advisory about intent
 
 They compare declared configuration against on-chain state. They cannot tell you the
