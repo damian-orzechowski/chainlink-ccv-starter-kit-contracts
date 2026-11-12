@@ -104,6 +104,18 @@ A **directed** lane (source → dest). Contracts deploy on both chains of every 
     "allowlistEnabled": false,
     "allowedSenders":   []
   }
+
+  // OPTIONAL, BpsFeeCommitteeVerifier only -> setFeeConfig on the SOURCE verifier, keyed
+  //    by DEST selector. Applied by `make apply-bps-config` (after apply-remote-config).
+  //    Absent = the contract default: disabled, so getFee charges the flat feeUSDCents.
+  //    All four keys when present. Same bounds as setFeeConfig, checked at load:
+  //    feeBps <= 10000, capUSDCents >= minFeeUSDCents, minFeeUSDCents > 0 when enabled.
+  // "bpsFeeConfig": {
+  //   "enabled":        true,
+  //   "feeBps":         5,      // 5 = 0.05% of the transfer's USD value
+  //   "minFeeUSDCents": 50,     // floor
+  //   "capUSDCents":    5000    // cap; <= 65535 (getFee returns uint16)
+  // }
 }
 ```
 
@@ -162,6 +174,11 @@ setting pushed on-chain.
         "allowlistAdmin":        "0x...",  // part of DynamicConfig
         "feeAggregator":         "0x..."   // DynamicConfig.feeAggregator (distinct from resolver's!)
       }
+
+      // OPTIONAL, BpsFeeCommitteeVerifier only -> setRequireAllTokensPriced, applied by
+      // `make apply-bps-config`. true: getFee reverts for a transferred token with no
+      // registered adapter (or a reverting one). Absent = false: such a token counts as zero.
+      // "requireAllTokensPriced": false
     }
   ],
   "resolver": {

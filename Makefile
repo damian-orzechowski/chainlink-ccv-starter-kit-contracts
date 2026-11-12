@@ -8,7 +8,7 @@
         test sync-selftest fmt fmt-check lint lint-sh lint-typos \
         bootstrap-factory deploy-resolver deploy-verifier deploy-bps-verifier deploy-price-adapter verify \
         apply-remote-config pause-lane apply-allowlists apply-signature-configs \
-        set-dynamic-config set-finality-config update-storage-locations \
+        set-dynamic-config set-finality-config update-storage-locations apply-bps-config \
         apply-inbound apply-outbound set-fee-aggregator apply-factory-allowlist \
         transfer-owner accept-owner cancel-owner \
         transfer-sla accept-sla cancel-sla \
@@ -218,6 +218,11 @@ set-finality-config: ## verifier allowed-finality cap from operator config | cal
 update-storage-locations: ## verifier storageLocations (caller: storageLocationsAdmin) | caller=storageLocationsAdmin | mode=eoa,safe
 	$(need-tag)
 	$(call run-script,script/configure/UpdateStorageLocations.s.sol,"run(string,bytes4)",$(CHAIN) $(TAG))
+
+# ---- configure: BpsFeeCommitteeVerifier only (CHAIN + TAG) ----
+apply-bps-config: ## bps verifier only: recorded price adapters, lane bpsFeeConfig, requireAllTokensPriced; after apply-remote-config | caller=owner | mode=eoa,safe
+	$(need-tag)
+	$(call run-script,script/configure/ApplyBpsFeeConfig.s.sol,"run(string,bytes4)",$(CHAIN) $(TAG))
 
 # ---- configure: resolver-scoped (CHAIN only) ----
 apply-inbound:    ## resolver inbound map (versionTag -> verifier) for lanes INTO this chain | caller=owner | mode=eoa,safe

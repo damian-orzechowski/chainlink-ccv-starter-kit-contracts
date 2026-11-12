@@ -141,10 +141,9 @@ entry for the tag, the same up-front checks and role handover, and the same reco
 source). Give it its own tag; the resolver wiring treats it like any other verifier.
 
 The contract is a `CommitteeVerifier`, so every configure, ownership, fee and governance
-target works on it by tag. Its bps policy is not set at deploy: until the owner calls
-`setFeeConfig` (after `apply-remote-config` for that destination), `setPriceAdapter(s)`
-and optionally `setRequireAllTokensPriced`, `getFee` charges the flat
-`remoteChainConfig.feeUSDCents`.
+target works on it by tag. Its bps policy is not set at deploy: until
+`make apply-bps-config` has run (see [below](#bps-fee-configuration)), `getFee` charges the
+flat `remoteChainConfig.feeUSDCents`.
 
 ### Price adapters
 
@@ -180,12 +179,39 @@ only a **warning**, because a testnet feed may simply be stale, but it also catc
 wrong feed address. Until the adapter prices, `getFee` values that token at zero (or
 reverts, with `setRequireAllTokensPriced(true)`).
 
-Deploying does not register the adapter. Order on each chain:
+Deploying does not register the adapter; `make apply-bps-config` does.
+
+### BPS fee configuration
+
+```bash
+# requires: CHAIN, TAG, RPC_URL, OUTPUT_MODE (EOA or SAFE + SAFE_ADDRESS)
+make apply-bps-config CHAIN=sepolia TAG=0x00020001 RPC_URL=$SEPOLIA_RPC_URL OUTPUT_MODE=SAFE SAFE_ADDRESS=0x...
+```
+
+These settings exist only on a `BpsFeeCommitteeVerifier`, so they live in optional keys
+the stock configure scripts never read, and only this target pushes them. It runs as the
+verifier owner, on the verifier recorded for `TAG`, and stages, skipping whatever is
+already current:
+
+| Call | From | Absent means |
+|---|---|---|
+| `setPriceAdapters` | every adapter in `deployments/<alias>.json` → `priceAdapters[]` | — |
+| `setFeeConfig(dest, …)` per lane leaving `CHAIN` under `TAG` | the lane's `bpsFeeConfig` | disabled (flat fee) |
+| `setRequireAllTokensPriced` | the verifier entry's `requireAllTokensPriced` | `false` |
+
+Before building anything it refuses a `TAG` the record does not list as a
+`BpsFeeCommitteeVerifier`, and a lane that enables a policy for a destination the
+verifier has no remote chain config for (`setFeeConfig` would revert). In SAFE mode it
+also checks `SAFE_ADDRESS` is the verifier's current owner. `make validate-config` checks
+the `bpsFeeConfig` bounds (`feeBps <= 10000`, `capUSDCents >= minFeeUSDCents`, a non-zero
+`minFeeUSDCents` when enabled) and rejects bps settings aimed at a verifier recorded as a
+stock `CommitteeVerifier`. `make drift` compares all three against the chain.
+
+Order on each chain:
 
 1. `make deploy-price-adapter` for each token.
-2. `make deploy-bps-verifier`, then the usual configure steps (`apply-remote-config` first).
-3. As the verifier owner: `setPriceAdapter(token, adapter)` (or `setPriceAdapters`) with
-   the recorded addresses, then `setFeeConfig` per destination.
+2. `make deploy-bps-verifier`, then the usual configure steps, `apply-remote-config` first.
+3. `make apply-bps-config`. Re-run it after adding an adapter or editing a `bpsFeeConfig`.
 
 ## Address determinism
 
