@@ -167,6 +167,17 @@ mutable, so the entry is the whole configuration: changing a feed or a staleness
 means editing the entry and deploying again with `ALLOW_ADAPTER_REPLACE=true` (a token
 already on record otherwise reverts).
 
+Because an edit does nothing on chain until the replacement is deployed, two checks keep
+the copies in step:
+
+- `make validate-config` fails an operator file whose `priceAdapters[]` no longer matches
+  the record: an entry whose args differ from the recorded adapter's (each field is named,
+  declared != recorded), or a recorded token the file no longer declares. A declared entry
+  with nothing recorded yet passes.
+- `make drift` reads each recorded adapter's immutables on chain and reports every field
+  that differs from the record's `args` (a record edited after the deploy, or pointing at
+  the wrong address). An adapter that is neither type counts once.
+
 | Requirement | Source file | Revert message |
 |---|---|---|
 | `TOKEN` non-zero | deploy argument | `DeployPriceAdapter: token must be non-zero` |

@@ -3,6 +3,7 @@ pragma solidity 0.8.26;
 
 import {BpsConfigLib} from "../../src/lib/BpsConfigLib.sol";
 import {ConfigLib} from "../../src/lib/ConfigLib.sol";
+import {PriceAdapterLib} from "../../src/lib/PriceAdapterLib.sol";
 import {Types} from "../../src/lib/Types.sol";
 import {Script} from "forge-std/Script.sol";
 import {Vm} from "forge-std/Vm.sol";
@@ -14,7 +15,8 @@ import {console2} from "forge-std/console2.sol";
 ///         cross-file agreements (lane endpoints exist, selectors match, the operator
 ///         file carries a roles entry for every lane-pinned tag and the source's a
 ///         committee for it, a bidirectional pair agrees on the tag and mirrors its
-///         selectors, every recorded resolver used the repo-wide resolverSalt). One
+///         selectors, every recorded resolver used the repo-wide resolverSalt, every
+///         recorded price adapter is still declared with the args it was built from). One
 ///         [PASS]/[FAIL] line per file, no RPC.
 /// @dev The action scripts parse lazily — a broken file surfaces only when the first
 ///      script touches it, possibly mid-ceremony. This runs the same parses up front.
@@ -84,6 +86,20 @@ contract BpsConfigLoader {
       if (!policies[i].requireAllTokensPriced) continue;
       BpsConfigLib.requireBpsTargetIfDeclared(aliasName, policies[i].versionTag, "requireAllTokensPriced");
     }
+  }
+
+  /// @notice `priceAdapters[]` vs the adapters recorded in config/deployments/<alias>.json:
+  ///         an adapter cannot change after deploy, so a declaration that no longer matches
+  ///         its record has silently stopped describing the chain.
+  function checkPriceAdapters(
+    string calldata path,
+    string calldata aliasName
+  ) external view {
+    Types.Deployment memory deployment = ConfigLib.readDeploymentOrEmpty(aliasName);
+    if (deployment.priceAdapters.length == 0) return;
+    string memory err =
+      PriceAdapterLib.declaredVsRecordedError(ConfigLib.readOperatorByPath(path).priceAdapters, deployment);
+    require(bytes(err).length == 0, err);
   }
 }
 
@@ -351,6 +367,12 @@ contract ValidateConfig is Script {
       _fail(rel, reason);
     } catch {
       _fail(rel, "requireAllTokensPriced malformed");
+    }
+    try s_bpsLoader.checkPriceAdapters(path, aliasName) {}
+    catch Error(string memory reason) {
+      _fail(rel, reason);
+    } catch {
+      _fail(rel, "priceAdapters could not be compared with the deployment record");
     }
   }
 

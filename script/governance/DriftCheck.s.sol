@@ -6,6 +6,7 @@ import {BpsFeeConfig} from "../../src/bps/BpsFeeConfig.sol";
 import {BpsConfigLib} from "../../src/lib/BpsConfigLib.sol";
 import {ConfigLib} from "../../src/lib/ConfigLib.sol";
 import {FinalityConfigLib} from "../../src/lib/FinalityConfigLib.sol";
+import {PriceAdapterLib} from "../../src/lib/PriceAdapterLib.sol";
 import {Types} from "../../src/lib/Types.sol";
 import {CREATE2Factory} from "@chainlink/contracts-ccip/contracts/CREATE2Factory.sol";
 import {CommitteeVerifier} from "@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol";
@@ -51,6 +52,10 @@ import {console2} from "forge-std/console2.sol";
 ///      settings only it has. It is separate from `checkAll` and reads nothing for a
 ///      stock verifier, so the standard path is unchanged.
 ///
+/// @dev Recorded price adapters get `checkPriceAdapters`: each adapter's immutables read
+///      back on-chain vs the args the record says it was built from. The operator file's
+///      declaration vs the record is `make validate-config`'s job (no RPC needed).
+///
 /// Usage (direct):
 ///   forge script script/governance/DriftCheck.s.sol --sig "run(string)" sepolia --rpc-url $SEPOLIA_RPC_URL
 /// Usage (CI, with exit-code mapping):
@@ -72,6 +77,8 @@ contract DriftCheck is Script {
     uint256 drift = checkAll(deployment, operator, lanes);
     // A no-op unless the record holds a BpsFeeCommitteeVerifier.
     drift += checkBpsFees(deployment, BpsConfigLib.readLaneBpsFees(), BpsConfigLib.readVerifierPolicies(chainAlias));
+    // A no-op unless the record holds price adapters.
+    drift += checkPriceAdapters(deployment);
 
     if (drift > 0) {
       console2.log("DRIFT_DETECTED total mismatches:", drift);
@@ -411,6 +418,48 @@ contract DriftCheck is Script {
           bps.getFeeConfig(laneFees[j].destSelector)
         );
       }
+    }
+  }
+
+  /// @notice Each recorded price adapter's on-chain getters vs its recorded args, one drift
+  ///         per differing field. An adapter that is not one of the two known kinds (or
+  ///         prices another token) is one drift: its args cannot be read back.
+  /// @dev Adapters are immutable, so drift here never means "someone changed it": it
+  ///      means the record names the wrong address, or was edited after the deploy.
+  ///      A codeless adapter reverts without the marker, like every other contract.
+  function checkPriceAdapters(
+    Types.Deployment memory deployment
+  ) public view returns (uint256 drift) {
+    for (uint256 i = 0; i < deployment.priceAdapters.length; ++i) {
+      Types.PriceAdapterDeployment memory recorded = deployment.priceAdapters[i];
+      string memory label =
+        string.concat("price adapter ", vm.toString(recorded.addr), " for token ", vm.toString(recorded.args.token));
+      require(
+        recorded.addr.code.length != 0, string.concat("DriftCheck: no code at recorded ", label, " (wrong --rpc-url?)")
+      );
+      (bool known, Types.PriceAdapterConfig memory live) = PriceAdapterLib.describe(recorded.addr);
+      if (!known) {
+        console2.log(
+          string.concat(
+            "DRIFT_DETECTED ",
+            label,
+            " is not a ",
+            ConfigLib.L1_PRICE_ADAPTER,
+            " or ",
+            ConfigLib.L2_PRICE_ADAPTER,
+            " (recorded as ",
+            recorded.args.contractName,
+            ")"
+          )
+        );
+        ++drift;
+        continue;
+      }
+      string[] memory fields = PriceAdapterLib.diff(recorded.args, live);
+      for (uint256 j = 0; j < fields.length; ++j) {
+        console2.log(string.concat("DRIFT_DETECTED ", label, " (recorded != on-chain): ", fields[j]));
+      }
+      drift += fields.length;
     }
   }
 

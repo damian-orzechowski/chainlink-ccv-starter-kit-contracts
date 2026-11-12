@@ -2,11 +2,14 @@
 pragma solidity 0.8.26;
 
 import {DeployPriceAdapter} from "../../script/deploy/DeployPriceAdapter.s.sol";
+import {DriftCheck} from "../../script/governance/DriftCheck.s.sol";
 import {ConfigLib} from "../../src/lib/ConfigLib.sol";
+import {PriceAdapterLib} from "../../src/lib/PriceAdapterLib.sol";
 import {Types} from "../../src/lib/Types.sol";
 import {WstETHUSDL2PriceAdapter} from "../../src/price-adapters/WstETHUSDL2PriceAdapter.sol";
 import {WstETHUSDPriceAdapter} from "../../src/price-adapters/WstETHUSDPriceAdapter.sol";
 import {MockAggregatorV3} from "../mocks/MockAggregatorV3.sol";
+import {MockPriceAdapter} from "../mocks/MockPriceAdapter.sol";
 import {MockWstETH} from "../mocks/MockWstETH.sol";
 import {Test} from "forge-std/Test.sol";
 
@@ -24,12 +27,16 @@ contract DeployPriceAdapterTest is Test {
 
   Reader internal reader;
   Harness internal harness;
+  PriceAdapterLibHarness internal lib;
+  DriftCheck internal drift;
 
   function setUp() public {
     vm.createDir("out/governance", true);
     vm.warp(30 days);
     reader = new Reader();
     harness = new Harness();
+    lib = new PriceAdapterLibHarness();
+    drift = new DriftCheck();
   }
 
   // ===========================================================================
@@ -264,8 +271,166 @@ contract DeployPriceAdapterTest is Test {
   }
 
   // ===========================================================================
+  //  validate-config: declared vs recorded
+  // ===========================================================================
+
+  function test_declaredVsRecorded_agreeingEntriesPass() public view {
+    assertEq(lib.declaredVsRecordedError(_declaredBoth(), _recordBoth()), "");
+  }
+
+  /// @dev Deploying is the next step after declaring: nothing recorded yet is fine.
+  function test_declaredVsRecorded_undeployedDeclarationPasses() public view {
+    Types.Deployment memory d;
+    d.aliasName = "testchain";
+    assertEq(lib.declaredVsRecordedError(_declaredBoth(), d), "");
+  }
+
+  function test_declaredVsRecorded_editedStalenessFails() public view {
+    Types.PriceAdapterConfig[] memory declared = _declaredBoth();
+    declared[0].usdMaxStaleness = 3600;
+    string memory err = lib.declaredVsRecordedError(declared, _recordBoth());
+
+    assertTrue(vm.contains(err, string.concat("priceAdapters entry for token ", vm.toString(TOKEN))), err);
+    assertTrue(vm.contains(err, "usdMaxStaleness 3600 != 90000"), err);
+    assertTrue(vm.contains(err, "config/deployments/testchain.json"), err);
+    assertTrue(
+      vm.contains(err, string.concat("make deploy-price-adapter CHAIN=testchain TOKEN=", vm.toString(TOKEN))), err
+    );
+    assertFalse(vm.contains(err, vm.toString(OTHER_TOKEN)), "the untouched entry is not reported");
+  }
+
+  function test_declaredVsRecorded_editedFeedsFail() public view {
+    Types.PriceAdapterConfig[] memory declared = _declaredBoth();
+    declared[1].sequencerUptimeFeed = FEED_B;
+    declared[1].rateFeed = FEED_B;
+    string memory err = lib.declaredVsRecordedError(declared, _recordBoth());
+
+    assertTrue(
+      vm.contains(err, string.concat("sequencerUptimeFeed ", vm.toString(FEED_B), " != ", vm.toString(SEQUENCER))), err
+    );
+    assertTrue(vm.contains(err, string.concat("rateFeed ", vm.toString(FEED_B), " != ", vm.toString(FEED_A))), err);
+  }
+
+  function test_declaredVsRecorded_changedContractFails() public view {
+    Types.PriceAdapterConfig[] memory declared = _declaredBoth();
+    declared[0] = _l2Record(address(0)).args;
+    declared[0].token = TOKEN;
+    string memory err = lib.declaredVsRecordedError(declared, _recordBoth());
+    assertTrue(vm.contains(err, "contract WstETHUSDL2PriceAdapter != WstETHUSDPriceAdapter"), err);
+  }
+
+  function test_declaredVsRecorded_droppedDeclarationFails() public view {
+    Types.PriceAdapterConfig[] memory declared = new Types.PriceAdapterConfig[](1);
+    declared[0] = _l1Record(address(0)).args;
+    string memory err = lib.declaredVsRecordedError(declared, _recordBoth());
+
+    assertTrue(vm.contains(err, string.concat("token ", vm.toString(OTHER_TOKEN), " is missing")), err);
+    assertTrue(vm.contains(err, vm.toString(address(0xA2))), "names the recorded adapter");
+  }
+
+  /// @dev Every disagreement in one message, so one run shows them all.
+  function test_declaredVsRecorded_reportsEveryToken() public view {
+    Types.PriceAdapterConfig[] memory declared = _declaredBoth();
+    declared[0].usdFeed = FEED_B;
+    declared[1].gracePeriod = 7200;
+    string memory err = lib.declaredVsRecordedError(declared, _recordBoth());
+    assertTrue(vm.contains(err, "usdFeed"), err);
+    assertTrue(vm.contains(err, "gracePeriod 7200 != 3600"), err);
+    assertTrue(vm.contains(err, "; "), "joined");
+  }
+
+  function test_diff_isEmptyForEqualConfigs() public view {
+    assertEq(lib.diff(_l2Record(address(0)).args, _l2Record(address(0)).args).length, 0);
+  }
+
+  // ===========================================================================
+  //  DriftCheck: recorded vs on-chain
+  // ===========================================================================
+
+  function test_checkPriceAdapters_cleanWhenTheRecordMatchesChain() public {
+    assertEq(drift.checkPriceAdapters(_deployedBoth()), 0);
+  }
+
+  function test_checkPriceAdapters_countsEachEditedField() public {
+    Types.Deployment memory d = _deployedBoth();
+    d.priceAdapters[0].args.usdMaxStaleness = 3600;
+    assertEq(drift.checkPriceAdapters(d), 1, "one field");
+    d.priceAdapters[1].args.gracePeriod = 7200;
+    d.priceAdapters[1].args.usdFeed = FEED_A;
+    assertEq(drift.checkPriceAdapters(d), 3, "every field counts");
+  }
+
+  /// @dev A record pointing at the other adapter: contract and every arg differ.
+  function test_checkPriceAdapters_catchesASwappedAddress() public {
+    Types.Deployment memory d = _deployedBoth();
+    (d.priceAdapters[0].addr, d.priceAdapters[1].addr) = (d.priceAdapters[1].addr, d.priceAdapters[0].addr);
+    assertGt(drift.checkPriceAdapters(d), 2);
+  }
+
+  function test_checkPriceAdapters_unknownAdapterIsOneDrift() public {
+    Types.Deployment memory d = _deployedBoth();
+    d.priceAdapters[0].addr = address(new MockPriceAdapter(d.priceAdapters[0].args.token, 1));
+    assertEq(drift.checkPriceAdapters(d), 1);
+  }
+
+  /// @dev No code is the wrong RPC, not drift: revert without the marker.
+  function test_checkPriceAdapters_codelessAdapterReverts() public {
+    Types.Deployment memory d = _deployedBoth();
+    d.priceAdapters[0].addr = address(0xC0DE1E55);
+    vm.expectRevert(
+      bytes(
+        string.concat(
+          "DriftCheck: no code at recorded price adapter ",
+          vm.toString(address(0xC0DE1E55)),
+          " for token ",
+          vm.toString(d.priceAdapters[0].args.token),
+          " (wrong --rpc-url?)"
+        )
+      )
+    );
+    drift.checkPriceAdapters(d);
+  }
+
+  // ===========================================================================
   //  fixtures
   // ===========================================================================
+
+  function _declaredBoth() internal pure returns (Types.PriceAdapterConfig[] memory declared) {
+    declared = new Types.PriceAdapterConfig[](2);
+    declared[0] = _l1Record(address(0)).args;
+    declared[1] = _l2Record(address(0)).args;
+  }
+
+  function _recordBoth() internal pure returns (Types.Deployment memory d) {
+    d.aliasName = "testchain";
+    d.priceAdapters = new Types.PriceAdapterDeployment[](2);
+    d.priceAdapters[0] = _l1Record(address(0xA1));
+    d.priceAdapters[1] = _l2Record(address(0xA2));
+  }
+
+  /// @dev Real adapters over mock feeds, recorded exactly as DeployPriceAdapter records them.
+  function _deployedBoth() internal returns (Types.Deployment memory d) {
+    Types.PriceAdapterConfig memory l1;
+    l1.contractName = "WstETHUSDPriceAdapter";
+    l1.token = address(new MockWstETH());
+    l1.usdFeed = address(new MockAggregatorV3(8, 4000e8, block.timestamp));
+    l1.usdMaxStaleness = 90_000;
+
+    Types.PriceAdapterConfig memory l2;
+    l2.contractName = "WstETHUSDL2PriceAdapter";
+    l2.token = address(new MockWstETH());
+    l2.rateFeed = address(new MockAggregatorV3(18, 1.2e18, block.timestamp));
+    l2.usdFeed = address(new MockAggregatorV3(8, 4000e8, block.timestamp));
+    l2.rateMaxStaleness = 86_400;
+    l2.usdMaxStaleness = 3600;
+    l2.sequencerUptimeFeed = address(new MockAggregatorV3(0, 0, block.timestamp - 2 hours));
+    l2.gracePeriod = 3600;
+
+    d.aliasName = "testchain";
+    d.priceAdapters = new Types.PriceAdapterDeployment[](2);
+    d.priceAdapters[0] = harness.create(l1);
+    d.priceAdapters[1] = harness.create(l2);
+  }
 
   function _l1Entry(
     address token
@@ -358,6 +523,23 @@ contract DeployPriceAdapterTest is Test {
       assertTrue(vm.contains(reason, reasonFragment), reason);
     }
     vm.removeFile(path);
+  }
+}
+
+/// @dev PriceAdapterLib's comparisons, callable from the test.
+contract PriceAdapterLibHarness {
+  function declaredVsRecordedError(
+    Types.PriceAdapterConfig[] memory declared,
+    Types.Deployment memory deployment
+  ) external pure returns (string memory) {
+    return PriceAdapterLib.declaredVsRecordedError(declared, deployment);
+  }
+
+  function diff(
+    Types.PriceAdapterConfig memory expected,
+    Types.PriceAdapterConfig memory actual
+  ) external pure returns (string[] memory) {
+    return PriceAdapterLib.diff(expected, actual);
   }
 }
 
