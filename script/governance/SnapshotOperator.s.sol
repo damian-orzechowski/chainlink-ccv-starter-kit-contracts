@@ -9,13 +9,11 @@ import {BaseScript} from "../../src/lib/BaseScript.sol";
 import {BpsConfigLib} from "../../src/lib/BpsConfigLib.sol";
 import {ConfigLib} from "../../src/lib/ConfigLib.sol";
 import {FinalityConfigLib} from "../../src/lib/FinalityConfigLib.sol";
+import {PriceAdapterLib} from "../../src/lib/PriceAdapterLib.sol";
 import {Types} from "../../src/lib/Types.sol";
-import {WstETHUSDL2PriceAdapter} from "../../src/price-adapters/WstETHUSDL2PriceAdapter.sol";
-import {WstETHUSDPriceAdapter} from "../../src/price-adapters/WstETHUSDPriceAdapter.sol";
 import {CREATE2Factory} from "@chainlink/contracts-ccip/contracts/CREATE2Factory.sol";
 import {CommitteeVerifier} from "@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol";
 import {VersionedVerifierResolver} from "@chainlink/contracts-ccip/contracts/ccvs/VersionedVerifierResolver.sol";
-import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {console2} from "forge-std/console2.sol";
 
 /// @title SnapshotOperator
@@ -249,34 +247,12 @@ contract SnapshotOperator is BaseScript {
     }
   }
 
-  /// @notice Reads an adapter's constructor arguments back from its public immutables.
-  /// @return known False when `adapter` has no code or is neither WstETHUSDPriceAdapter
-  ///         nor WstETHUSDL2PriceAdapter (told apart by RATE_FEED, which only L2 has).
+  /// @notice Reads an adapter's constructor arguments back from its public immutables
+  ///         (see `PriceAdapterLib.describe`).
   function describeAdapter(
     address adapter
   ) public view returns (bool known, Types.PriceAdapterConfig memory c) {
-    if (adapter.code.length == 0) return (known, c);
-    try WstETHUSDL2PriceAdapter(adapter).RATE_FEED() returns (AggregatorV3Interface rateFeed) {
-      WstETHUSDL2PriceAdapter l2 = WstETHUSDL2PriceAdapter(adapter);
-      c.contractName = ConfigLib.L2_PRICE_ADAPTER;
-      c.token = l2.TOKEN();
-      c.rateFeed = address(rateFeed);
-      c.rateMaxStaleness = l2.RATE_MAX_STALENESS();
-      c.usdFeed = address(l2.USD_FEED());
-      c.usdMaxStaleness = l2.USD_MAX_STALENESS();
-      c.sequencerUptimeFeed = address(l2.SEQUENCER_UPTIME_FEED());
-      c.gracePeriod = l2.GRACE_PERIOD();
-      known = true;
-      return (known, c);
-    } catch {}
-    try WstETHUSDPriceAdapter(adapter).MAX_STALENESS() returns (uint256 maxStaleness) {
-      WstETHUSDPriceAdapter l1 = WstETHUSDPriceAdapter(adapter);
-      c.contractName = ConfigLib.L1_PRICE_ADAPTER;
-      c.token = l1.TOKEN();
-      c.usdFeed = address(l1.USD_FEED());
-      c.usdMaxStaleness = maxStaleness;
-      known = true;
-    } catch {}
+    return PriceAdapterLib.describe(adapter);
   }
 
   function _snapshotAdapter(
