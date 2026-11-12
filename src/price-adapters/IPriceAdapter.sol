@@ -24,5 +24,7 @@ interface IPriceAdapter {
   ///         on-chain integer, e.g. 1e18 for an 18-decimal token).
   /// @return valueUSDCents value in USD cents. NOT clamped — the verifier applies
   ///         the floor/cap. Returned as uint256 to avoid overflow before clamp.
-  function getValueInUSDCents(uint256 amount) external view returns (uint256 valueUSDCents);
+  function getValueInUSDCents(
+    uint256 amount
+  ) external view returns (uint256 valueUSDCents);
 }

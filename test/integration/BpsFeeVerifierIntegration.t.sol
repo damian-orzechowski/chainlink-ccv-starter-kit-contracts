@@ -2,21 +2,21 @@
 // SPDX-FileCopyrightText: 2026 SmartContract Chainlink Limited SEZC with contributions from Demerzel Solutions Limited
 pragma solidity ^0.8.26;
 
-import { Test } from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import { BpsFeeCommitteeVerifier } from "../../src/bps/BpsFeeCommitteeVerifier.sol";
-import { BpsFeeConfig } from "../../src/bps/BpsFeeConfig.sol";
-import { IPriceAdapter } from "../../src/price-adapters/IPriceAdapter.sol";
-import { WstETHUSDPriceAdapter } from "../../src/price-adapters/WstETHUSDPriceAdapter.sol";
-import { PriceFeedLib } from "../../src/price-adapters/PriceFeedLib.sol";
+import {BpsFeeCommitteeVerifier} from "../../src/bps/BpsFeeCommitteeVerifier.sol";
+import {BpsFeeConfig} from "../../src/bps/BpsFeeConfig.sol";
+import {IPriceAdapter} from "../../src/price-adapters/IPriceAdapter.sol";
+import {PriceFeedLib} from "../../src/price-adapters/PriceFeedLib.sol";
+import {WstETHUSDPriceAdapter} from "../../src/price-adapters/WstETHUSDPriceAdapter.sol";
 
-import { CommitteeVerifier } from "@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol";
-import { BaseVerifier } from "@chainlink/contracts-ccip/contracts/ccvs/components/BaseVerifier.sol";
-import { IRouter } from "@chainlink/contracts-ccip/contracts/interfaces/IRouter.sol";
-import { Client } from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
+import {CommitteeVerifier} from "@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol";
+import {BaseVerifier} from "@chainlink/contracts-ccip/contracts/ccvs/components/BaseVerifier.sol";
+import {IRouter} from "@chainlink/contracts-ccip/contracts/interfaces/IRouter.sol";
+import {Client} from "@chainlink/contracts-ccip/contracts/libraries/Client.sol";
 
-import { MockAggregatorV3 } from "../mocks/MockAggregatorV3.sol";
-import { MockWstETH } from "../mocks/MockWstETH.sol";
+import {MockAggregatorV3} from "../mocks/MockAggregatorV3.sol";
+import {MockWstETH} from "../mocks/MockWstETH.sol";
 
 /// @notice Integration tests: the REAL wstETH price adapter registered behind
 ///         the verifier, exercised end-to-end through getFee. This crosses the
@@ -55,7 +55,7 @@ contract BpsFeeVerifierIntegrationTest is Test {
     vm.warp(START_TS);
 
     CommitteeVerifier.DynamicConfig memory dc =
-      CommitteeVerifier.DynamicConfig({ feeAggregator: makeAddr("agg"), allowlistAdmin: makeAddr("allowlistAdmin") });
+      CommitteeVerifier.DynamicConfig({feeAggregator: makeAddr("agg"), allowlistAdmin: makeAddr("allowlistAdmin")});
     verifier = new BpsFeeCommitteeVerifier(dc, new string[](0), makeAddr("rmn"), bytes4(uint32(1)));
 
     BaseVerifier.RemoteChainConfigArgs[] memory args = new BaseVerifier.RemoteChainConfigArgs[](1);
@@ -69,7 +69,7 @@ contract BpsFeeVerifierIntegrationTest is Test {
     });
     verifier.applyRemoteChainConfigUpdates(args);
     verifier.setFeeConfig(
-      DEST, BpsFeeConfig({ feeBps: FEE_BPS, minFeeUSDCents: MIN_CENTS, capUSDCents: CAP_CENTS, enabled: true })
+      DEST, BpsFeeConfig({feeBps: FEE_BPS, minFeeUSDCents: MIN_CENTS, capUSDCents: CAP_CENTS, enabled: true})
     );
 
     // Real adapters backed by mock oracles.
@@ -97,24 +97,30 @@ contract BpsFeeVerifierIntegrationTest is Test {
     m.extraArgs = "";
   }
 
-  function _msg1(address token, uint256 amount) internal pure returns (Client.EVM2AnyMessage memory m) {
+  function _msg1(
+    address token,
+    uint256 amount
+  ) internal pure returns (Client.EVM2AnyMessage memory m) {
     m = _emptyMsg();
     m.tokenAmounts = new Client.EVMTokenAmount[](1);
-    m.tokenAmounts[0] = Client.EVMTokenAmount({ token: token, amount: amount });
+    m.tokenAmounts[0] = Client.EVMTokenAmount({token: token, amount: amount});
   }
 
-  function _msg2(address t0, uint256 a0, address t1, uint256 a1)
-    internal
-    pure
-    returns (Client.EVM2AnyMessage memory m)
-  {
+  function _msg2(
+    address t0,
+    uint256 a0,
+    address t1,
+    uint256 a1
+  ) internal pure returns (Client.EVM2AnyMessage memory m) {
     m = _emptyMsg();
     m.tokenAmounts = new Client.EVMTokenAmount[](2);
-    m.tokenAmounts[0] = Client.EVMTokenAmount({ token: t0, amount: a0 });
-    m.tokenAmounts[1] = Client.EVMTokenAmount({ token: t1, amount: a1 });
+    m.tokenAmounts[0] = Client.EVMTokenAmount({token: t0, amount: a0});
+    m.tokenAmounts[1] = Client.EVMTokenAmount({token: t1, amount: a1});
   }
 
-  function _fee(Client.EVM2AnyMessage memory m) internal view returns (uint16 f) {
+  function _fee(
+    Client.EVM2AnyMessage memory m
+  ) internal view returns (uint16 f) {
     (f,,) = verifier.getFee(DEST, m, "", bytes4(0));
   }
 

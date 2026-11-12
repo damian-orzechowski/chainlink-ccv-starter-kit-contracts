@@ -44,7 +44,9 @@ the target does not broadcast, or broadcasts unconditionally as EOA.
 | `make bootstrap-factory` | CREATE2Factory; must be the deployer's FIRST tx on the chain | deployer | eoa | CHAIN, RPC_URL |
 | `make deploy-resolver` | resolver via CREATE2; must land at the same address on every chain | deployer | eoa | CHAIN, RPC_URL |
 | `make deploy-verifier` | CommitteeVerifier for TAG; appends to the deployment record | deployer | eoa | CHAIN, TAG, RPC_URL |
-| `make verify` | source-verify recorded contracts; ONLY=factory\|resolver\|verifiers\|verifier:<tag> | deployer | n/a | CHAIN |
+| `make deploy-bps-verifier` | BpsFeeCommitteeVerifier for TAG; same config + record as deploy-verifier | deployer | eoa | CHAIN, TAG, RPC_URL |
+| `make deploy-price-adapter` | price adapter declared for TOKEN in the operator file; appends to the deployment record | deployer | eoa | CHAIN, RPC_URL |
+| `make verify` | source-verify recorded contracts; ONLY=factory\|resolver\|verifiers\|verifier:<tag>\|adapters\|adapter:<token> | deployer | n/a | CHAIN |
 
 ## Configure
 
@@ -57,6 +59,7 @@ the target does not broadcast, or broadcasts unconditionally as EOA.
 | `make set-dynamic-config` | verifier { feeAggregator, allowlistAdmin } from operator config | owner | eoa,safe | CHAIN, TAG, RPC_URL, SAFE_ADDRESS (mode=safe only) |
 | `make set-finality-config` | verifier allowed-finality cap from operator config | owner | eoa,safe | CHAIN, TAG, RPC_URL, SAFE_ADDRESS (mode=safe only) |
 | `make update-storage-locations` | verifier storageLocations (caller: storageLocationsAdmin) | storageLocationsAdmin | eoa,safe | CHAIN, TAG, RPC_URL, SAFE_ADDRESS (mode=safe only) |
+| `make apply-bps-config` | bps verifier only: recorded price adapters, lane bpsFeeConfig, requireAllTokensPriced; after apply-remote-config | owner | eoa,safe | CHAIN, TAG, RPC_URL, SAFE_ADDRESS (mode=safe only) |
 | `make apply-inbound` | resolver inbound map (versionTag -> verifier) for lanes INTO this chain | owner | eoa,safe | CHAIN, RPC_URL, SAFE_ADDRESS (mode=safe only) |
 | `make apply-outbound` | resolver outbound map (dest selector -> verifier) for lanes FROM this chain | owner | eoa,safe | CHAIN, RPC_URL, SAFE_ADDRESS (mode=safe only) |
 | `make set-fee-aggregator` | resolver feeAggregator from operator config | owner | eoa,safe | CHAIN, RPC_URL, SAFE_ADDRESS (mode=safe only) |

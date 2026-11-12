@@ -22,6 +22,8 @@ library ConfigLib {
   string private constant OPERATOR_DIR = "config/operator/chains/";
   string private constant DEPLOYMENTS_DIR = "config/deployments/";
   string private constant OPERATOR_PATH = "config/operator.json";
+  /// @dev The implementation a verifier record names when it names none.
+  string internal constant DEFAULT_VERIFIER_CONTRACT = "CommitteeVerifier";
 
   string internal constant BARE_VERIFIER_TARGET_ERROR =
     "ConfigLib: target 'verifier' needs a versionTag - use verifier:<versionTag> (e.g. verifier:0x00010001)";
@@ -493,6 +495,126 @@ library ConfigLib {
         string.concat("ConfigLib: zero address in factory.allowlist in ", path)
       );
     }
+
+    // Absent array == no price adapters declared (chains without a bps verifier).
+    count = 0;
+    while (vm.keyExistsJson(json, _adapterConfigKey(count, ""))) {
+      ++count;
+    }
+    operator.priceAdapters = new Types.PriceAdapterConfig[](count);
+    for (uint256 i = 0; i < count; ++i) {
+      Types.PriceAdapterConfig memory a = _parsePriceAdapterConfig(json, _adapterConfigKey(i, ""), path);
+      for (uint256 j = 0; j < i; ++j) {
+        require(
+          operator.priceAdapters[j].token != a.token,
+          string.concat("ConfigLib: duplicate priceAdapters token ", vm.toString(a.token), " in ", path)
+        );
+      }
+      operator.priceAdapters[i] = a;
+    }
+  }
+
+  function _adapterConfigKey(
+    uint256 index,
+    string memory field
+  ) private pure returns (string memory) {
+    return string.concat(".priceAdapters[", vm.toString(index), "]", field);
+  }
+
+  string internal constant L1_PRICE_ADAPTER = "WstETHUSDPriceAdapter";
+  string internal constant L2_PRICE_ADAPTER = "WstETHUSDL2PriceAdapter";
+
+  /// @dev One declared adapter. Strict both ways: every key its `contract` takes must be
+  ///      present (a missing feed must not read as address(0)), and any other key is
+  ///      rejected (an L2-only key on an L1 adapter is a mistake, not a no-op).
+  function _parsePriceAdapterConfig(
+    string memory json,
+    string memory key,
+    string memory path
+  ) private view returns (Types.PriceAdapterConfig memory a) {
+    a.contractName = vm.parseJsonString(json, string.concat(key, ".contract"));
+    bool isL2 = _stringsEqual(a.contractName, L2_PRICE_ADAPTER);
+    require(
+      isL2 || _stringsEqual(a.contractName, L1_PRICE_ADAPTER),
+      string.concat(
+        "ConfigLib: ",
+        key,
+        ".contract '",
+        a.contractName,
+        "' in ",
+        path,
+        " - must be ",
+        L1_PRICE_ADAPTER,
+        " or ",
+        L2_PRICE_ADAPTER
+      )
+    );
+
+    string[] memory keys = vm.parseJsonKeys(json, key);
+    for (uint256 i = 0; i < keys.length; ++i) {
+      string memory k = keys[i];
+      bool common = _stringsEqual(k, "contract") || _stringsEqual(k, "token") || _stringsEqual(k, "usdFeed")
+        || _stringsEqual(k, "usdMaxStaleness");
+      bool l2Only = _stringsEqual(k, "rateFeed") || _stringsEqual(k, "rateMaxStaleness")
+        || _stringsEqual(k, "sequencerUptimeFeed") || _stringsEqual(k, "gracePeriod");
+      require(
+        common || (isL2 && l2Only),
+        string.concat("ConfigLib: unknown key '", k, "' in ", key, " (", a.contractName, ") in ", path)
+      );
+    }
+
+    a.token = _requiredAddress(json, key, "token", path);
+    a.usdFeed = _requiredAddress(json, key, "usdFeed", path);
+    a.usdMaxStaleness = _requiredUint(json, key, "usdMaxStaleness", path);
+    if (isL2) {
+      a.rateFeed = _requiredAddress(json, key, "rateFeed", path);
+      a.rateMaxStaleness = _requiredUint(json, key, "rateMaxStaleness", path);
+      a.sequencerUptimeFeed = _requiredAddress(json, key, "sequencerUptimeFeed", path);
+      a.gracePeriod = _requiredUint(json, key, "gracePeriod", path);
+    }
+  }
+
+  function _requiredAddress(
+    string memory json,
+    string memory key,
+    string memory field,
+    string memory path
+  ) private view returns (address value) {
+    string memory full = string.concat(key, ".", field);
+    require(vm.keyExistsJson(json, full), string.concat("ConfigLib: missing ", full, " in ", path));
+    value = vm.parseJsonAddress(json, full);
+    require(value != address(0), string.concat("ConfigLib: zero address at ", full, " in ", path));
+  }
+
+  function _requiredUint(
+    string memory json,
+    string memory key,
+    string memory field,
+    string memory path
+  ) private view returns (uint256) {
+    string memory full = string.concat(key, ".", field);
+    require(vm.keyExistsJson(json, full), string.concat("ConfigLib: missing ", full, " in ", path));
+    return vm.parseJsonUint(json, full);
+  }
+
+  /// @notice The adapter declared for `token`. Reverts when none is: the declaration is
+  ///         intent and precedes the deploy, so write it first.
+  function priceAdapterConfigByToken(
+    Types.OperatorConfig memory operator,
+    address token
+  ) internal pure returns (Types.PriceAdapterConfig memory) {
+    for (uint256 i = 0; i < operator.priceAdapters.length; ++i) {
+      if (operator.priceAdapters[i].token == token) return operator.priceAdapters[i];
+    }
+    revert(
+      string.concat(
+        "ConfigLib: no priceAdapters entry for token ",
+        vm.toString(token),
+        " in ",
+        operatorPath(operator.aliasName),
+        " - declare it before deploying"
+      )
+    );
   }
 
   function _parseSignatureConfig(
@@ -657,6 +779,11 @@ library ConfigLib {
       }
       deployment.verifiers[i].versionTag = tag;
       deployment.verifiers[i].addr = addr;
+      // Lenient on purpose, unlike the args below: records written before the key existed
+      // all describe a plain CommitteeVerifier, so an absent key reads as exactly that.
+      string memory contractKey = _verifierEntryKey(i, ".contract");
+      deployment.verifiers[i].contractName =
+        verifierContractName(vm.keyExistsJson(json, contractKey) ? vm.parseJsonString(json, contractKey) : "");
       // Parsed strictly like the blocks above: DeployVerifier writes every entry
       // complete, so a missing key means a malformed record.
       deployment.verifiers[i].feeAggregator = vm.parseJsonAddress(json, _verifierEntryKey(i, ".args.feeAggregator"));
@@ -666,6 +793,53 @@ library ConfigLib {
       deployment.verifiers[i].rmn = vm.parseJsonAddress(json, _verifierEntryKey(i, ".args.rmn"));
       deployment.verifiers[i].encodedArgs = vm.parseJsonBytes(json, _verifierEntryKey(i, ".encodedArgs"));
     }
+
+    // Absent array == none deployed (and records written before the key existed).
+    count = 0;
+    while (vm.keyExistsJson(json, _adapterEntryKey(count, ""))) {
+      ++count;
+    }
+    deployment.priceAdapters = new Types.PriceAdapterDeployment[](count);
+    for (uint256 i = 0; i < count; ++i) {
+      Types.PriceAdapterDeployment memory d = deployment.priceAdapters[i];
+      d.addr = vm.parseJsonAddress(json, _adapterEntryKey(i, ".address"));
+      require(d.addr != address(0), string.concat("ConfigLib: zero price adapter address in ", path));
+      // Parsed strictly: the writer emits every args key, zero where unused.
+      Types.PriceAdapterConfig memory a = d.args;
+      a.contractName = vm.parseJsonString(json, _adapterEntryKey(i, ".contract"));
+      a.token = vm.parseJsonAddress(json, _adapterEntryKey(i, ".args.token"));
+      for (uint256 j = 0; j < i; ++j) {
+        require(
+          deployment.priceAdapters[j].args.token != a.token,
+          string.concat("ConfigLib: duplicate price adapter token ", vm.toString(a.token), " in ", path)
+        );
+      }
+      a.rateFeed = vm.parseJsonAddress(json, _adapterEntryKey(i, ".args.rateFeed"));
+      a.usdFeed = vm.parseJsonAddress(json, _adapterEntryKey(i, ".args.usdFeed"));
+      a.rateMaxStaleness = vm.parseJsonUint(json, _adapterEntryKey(i, ".args.rateMaxStaleness"));
+      a.usdMaxStaleness = vm.parseJsonUint(json, _adapterEntryKey(i, ".args.usdMaxStaleness"));
+      a.sequencerUptimeFeed = vm.parseJsonAddress(json, _adapterEntryKey(i, ".args.sequencerUptimeFeed"));
+      a.gracePeriod = vm.parseJsonUint(json, _adapterEntryKey(i, ".args.gracePeriod"));
+      d.encodedArgs = vm.parseJsonBytes(json, _adapterEntryKey(i, ".encodedArgs"));
+    }
+  }
+
+  function _adapterEntryKey(
+    uint256 index,
+    string memory field
+  ) private pure returns (string memory) {
+    return string.concat(".priceAdapters[", vm.toString(index), "]", field);
+  }
+
+  /// @notice The price adapter recorded for `token`, or address(0) when none is.
+  function priceAdapterByToken(
+    Types.Deployment memory deployment,
+    address token
+  ) internal pure returns (address) {
+    for (uint256 i = 0; i < deployment.priceAdapters.length; ++i) {
+      if (deployment.priceAdapters[i].args.token == token) return deployment.priceAdapters[i].addr;
+    }
+    return address(0);
   }
 
   function _verifierEntryKey(
@@ -673,6 +847,14 @@ library ConfigLib {
     string memory field
   ) private pure returns (string memory) {
     return string.concat(".verifiers[", vm.toString(index), "]", field);
+  }
+
+  /// @notice The implementation a verifier entry names, with an unset name meaning the
+  ///         stock CommitteeVerifier (the only implementation before the field existed).
+  function verifierContractName(
+    string memory contractName
+  ) internal pure returns (string memory) {
+    return bytes(contractName).length == 0 ? DEFAULT_VERIFIER_CONTRACT : contractName;
   }
 
   /// @notice The verifier deployed for `tag`. Reverts when that tag is not
@@ -746,6 +928,10 @@ library ConfigLib {
     for (uint256 i = 0; i < deployment.verifiers.length; ++i) {
       entries = string.concat(entries, i == 0 ? "" : ",", _serializeVerifierEntry(deployment.verifiers[i], i));
     }
+    string memory adapters = "";
+    for (uint256 i = 0; i < deployment.priceAdapters.length; ++i) {
+      adapters = string.concat(adapters, i == 0 ? "" : ",", _serializeAdapterEntry(deployment.priceAdapters[i], i));
+    }
     string memory json = string.concat(
       "{\"alias\":\"",
       deployment.aliasName,
@@ -755,6 +941,8 @@ library ConfigLib {
       _serializeResolver(deployment.resolver, deployment.resolverParams),
       ",\"verifiers\":[",
       entries,
+      "],\"priceAdapters\":[",
+      adapters,
       "]}"
     );
     vm.writeJson(json, path);
@@ -808,6 +996,31 @@ library ConfigLib {
 
     string memory objectKey = string.concat("ccv_deployment_verifier_", vm.toString(index));
     vm.serializeString(objectKey, "versionTag", tagToString(entry.versionTag));
+    vm.serializeAddress(objectKey, "address", entry.addr);
+    vm.serializeString(objectKey, "contract", verifierContractName(entry.contractName));
+    vm.serializeString(objectKey, "args", argsJson);
+    return vm.serializeBytes(objectKey, "encodedArgs", entry.encodedArgs);
+  }
+
+  /// @dev Every args key is written for every adapter, zero where that contract does not
+  ///      take it: a conditionally-emitted key would bleed between records in one run
+  ///      (see _serializeFactory), and the reader parses them all strictly.
+  function _serializeAdapterEntry(
+    Types.PriceAdapterDeployment memory entry,
+    uint256 index
+  ) private returns (string memory) {
+    Types.PriceAdapterConfig memory a = entry.args;
+    string memory argsKey = string.concat("ccv_deployment_adapter_args_", vm.toString(index));
+    vm.serializeAddress(argsKey, "token", a.token);
+    vm.serializeAddress(argsKey, "rateFeed", a.rateFeed);
+    vm.serializeAddress(argsKey, "usdFeed", a.usdFeed);
+    vm.serializeUint(argsKey, "rateMaxStaleness", a.rateMaxStaleness);
+    vm.serializeUint(argsKey, "usdMaxStaleness", a.usdMaxStaleness);
+    vm.serializeAddress(argsKey, "sequencerUptimeFeed", a.sequencerUptimeFeed);
+    string memory argsJson = vm.serializeUint(argsKey, "gracePeriod", a.gracePeriod);
+
+    string memory objectKey = string.concat("ccv_deployment_adapter_", vm.toString(index));
+    vm.serializeString(objectKey, "contract", a.contractName);
     vm.serializeAddress(objectKey, "address", entry.addr);
     vm.serializeString(objectKey, "args", argsJson);
     return vm.serializeBytes(objectKey, "encodedArgs", entry.encodedArgs);

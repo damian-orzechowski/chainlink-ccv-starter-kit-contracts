@@ -114,3 +114,12 @@ with its live finality, storage locations and role holders, the committee carrie
 an existing operator file. Promote confirmed values
 into `config/operator/chains/<alias>.json` by hand. Output is run-local (snapshots
 hold live role addresses).
+
+For a `BpsFeeCommitteeVerifier` the snapshot also writes that verifier's
+`requireAllTokensPriced` and rebuilds `priceAdapters[]`: per token, the adapter the bps
+verifiers point at (`getPriceAdapter`), else the recorded one, described from its public
+immutables. The verifier cannot enumerate its tokens, so the token list is the deployment
+record's `priceAdapters[]` plus the tokens the current operator file declares; an adapter
+registered by hand for any other token is not captured. A declared adapter not yet
+deployed, or one that is not a type the schema can describe, keeps its declared entry;
+each such case is logged as a `NOTE`.

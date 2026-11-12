@@ -28,6 +28,10 @@ import {console2} from "forge-std/console2.sol";
 ///      reverts; ALLOW_TAG_REPLACE=true replaces that entry instead, for redoing a deploy
 ///      that went wrong before anything referenced it (never while it carries traffic).
 ///
+/// @dev The implementation is the one overridable step: a subclass sharing
+///      CommitteeVerifier's constructor overrides `_createVerifier` + `_contractName` and
+///      inherits every check, the role handover and the record (see DeployBpsVerifier).
+///
 /// Usage:
 ///   OUTPUT_MODE=EOA forge script script/deploy/DeployVerifier.s.sol \
 ///     --sig "run(string,bytes4)" sepolia 0x00010001 --rpc-url $SEPOLIA_RPC_URL --broadcast --aws
@@ -70,11 +74,11 @@ contract DeployVerifier is Script {
     });
 
     vm.broadcast();
-    CommitteeVerifier v =
-      new CommitteeVerifier(dynamicConfig, verifierConfig.storageLocations, chainConfig.rmn, versionTag);
+    CommitteeVerifier v = _createVerifier(dynamicConfig, verifierConfig.storageLocations, chainConfig.rmn, versionTag);
     verifier = address(v);
 
     console2.log("[DeployVerifier] chain:", chainAlias);
+    console2.log("  implementation:", _contractName());
     console2.log("  verifier deployed:", verifier);
     console2.log("  versionTag:", ConfigLib.tagToString(versionTag));
     console2.log("  rmn:", chainConfig.rmn);
@@ -107,6 +111,7 @@ contract DeployVerifier is Script {
     Types.VerifierDeployment memory record = Types.VerifierDeployment({
       versionTag: versionTag,
       addr: verifier,
+      contractName: _contractName(),
       feeAggregator: dynamicConfig.feeAggregator,
       allowlistAdmin: dynamicConfig.allowlistAdmin,
       storageLocations: verifierConfig.storageLocations,
@@ -120,6 +125,22 @@ contract DeployVerifier is Script {
     }
     ConfigLib.writeDeployment(deployment);
     console2.log("  recorded ->", ConfigLib.deploymentPath(chainAlias));
+  }
+
+  /// @dev The single CREATE this script broadcasts. An override must keep CommitteeVerifier's
+  ///      constructor signature: the recorded `encodedArgs` are built for it.
+  function _createVerifier(
+    CommitteeVerifier.DynamicConfig memory dynamicConfig,
+    string[] memory storageLocations,
+    address rmn,
+    bytes4 versionTag
+  ) internal virtual returns (CommitteeVerifier) {
+    return new CommitteeVerifier(dynamicConfig, storageLocations, rmn, versionTag);
+  }
+
+  /// @dev Recorded as the entry's `contract`; verify.sh maps it to the source to verify.
+  function _contractName() internal pure virtual returns (string memory) {
+    return "CommitteeVerifier";
   }
 
   /// @dev Appends the new verifier entry; a tag already on record means this run would
