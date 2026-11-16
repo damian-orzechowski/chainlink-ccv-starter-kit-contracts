@@ -99,7 +99,11 @@ library PriceAdapterLib {
             recordPath,
             " records adapter ",
             vm.toString(recorded.addr),
-            " for it - restore the entry (make snapshot rebuilds it from chain)"
+            " for it - to retire the adapter run make remove-price-adapter CHAIN=",
+            deployment.aliasName,
+            " TOKEN=",
+            vm.toString(recorded.args.token),
+            "; otherwise restore the entry (make snapshot rebuilds it from chain)"
           )
         );
         continue;

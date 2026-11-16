@@ -224,6 +224,36 @@ Order on each chain:
 2. `make deploy-bps-verifier`, then the usual configure steps, `apply-remote-config` first.
 3. `make apply-bps-config`. Re-run it after adding an adapter or editing a `bpsFeeConfig`.
 
+### Retiring a price adapter
+
+`apply-bps-config` only adds or replaces adapters. To stop pricing a token:
+
+```bash
+# 1. delete the token's entry from config/operator/chains/<alias>.json → priceAdapters[]
+#    (make validate-config now fails until step 2 has run)
+# 2. requires: CHAIN, TOKEN, RPC_URL, OUTPUT_MODE (EOA or SAFE + SAFE_ADDRESS)
+make remove-price-adapter CHAIN=sepolia TOKEN=0x... RPC_URL=$SEPOLIA_RPC_URL OUTPUT_MODE=SAFE SAFE_ADDRESS=0x...
+```
+
+It stages `setPriceAdapter(TOKEN, address(0))` on **every** recorded
+`BpsFeeCommitteeVerifier` that still points at an adapter for `TOKEN`. There is no `TAG`:
+the record is per chain, and `apply-bps-config` registers every recorded adapter on every
+bps verifier, so a token removed from one verifier only would be put back by the next run.
+Then it drops the token's entry from `deployments/<alias>.json`. The adapter stays deployed
+(it has no owner and nothing to switch off), and its address is logged.
+
+The record follows the chain: the entry is dropped only once no bps verifier points at the
+adapter. With `OUTPUT_MODE=EOA` that happens in the same run. With `OUTPUT_MODE=SAFE` the
+batch has not executed yet, so the record is kept (and `make drift` still watches the
+token) — re-run the command after the Safe executes: it stages nothing and drops the entry.
+
+| Refusal | Why |
+|---|---|
+| the operator file still declares `TOKEN` | config is the intent; delete the entry first |
+| a verifier with `requireAllTokensPriced` on still has the adapter | `getFee` would revert for every message carrying `TOKEN`; set `ALLOW_UNPRICED=true` to proceed anyway |
+| nothing recorded and nothing registered for `TOKEN` | nothing to remove |
+| `OUTPUT_MODE=SAFE` and `SAFE_ADDRESS` does not own a verifier it stages for | the batch would revert |
+
 ## Address determinism
 
 Two preconditions:

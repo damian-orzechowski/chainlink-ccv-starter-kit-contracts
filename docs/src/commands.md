@@ -60,6 +60,7 @@ the target does not broadcast, or broadcasts unconditionally as EOA.
 | `make set-finality-config` | verifier allowed-finality cap from operator config | owner | eoa,safe | CHAIN, TAG, RPC_URL, SAFE_ADDRESS (mode=safe only) |
 | `make update-storage-locations` | verifier storageLocations (caller: storageLocationsAdmin) | storageLocationsAdmin | eoa,safe | CHAIN, TAG, RPC_URL, SAFE_ADDRESS (mode=safe only) |
 | `make apply-bps-config` | bps verifier only: recorded price adapters, lane bpsFeeConfig, requireAllTokensPriced; after apply-remote-config | owner | eoa,safe | CHAIN, TAG, RPC_URL, SAFE_ADDRESS (mode=safe only) |
+| `make remove-price-adapter` | bps verifiers only: unregister TOKEN's adapter on every bps verifier, then drop its record entry; delete its priceAdapters entry first | owner | eoa,safe | CHAIN, RPC_URL, SAFE_ADDRESS (mode=safe only) |
 | `make apply-inbound` | resolver inbound map (versionTag -> verifier) for lanes INTO this chain | owner | eoa,safe | CHAIN, RPC_URL, SAFE_ADDRESS (mode=safe only) |
 | `make apply-outbound` | resolver outbound map (dest selector -> verifier) for lanes FROM this chain | owner | eoa,safe | CHAIN, RPC_URL, SAFE_ADDRESS (mode=safe only) |
 | `make set-fee-aggregator` | resolver feeAggregator from operator config | owner | eoa,safe | CHAIN, RPC_URL, SAFE_ADDRESS (mode=safe only) |
