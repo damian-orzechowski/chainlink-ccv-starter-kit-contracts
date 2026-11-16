@@ -3,20 +3,25 @@ Business Source License 1.1
 License text copyright (c) 2017 MariaDB Corporation Ab, All Rights Reserved.
 "Business Source License" is a trademark of MariaDB Corporation Ab.
 
+Attribution Notice
+BPS implementation originally developed by Demerzel Solutions Limited, 2026.
+Copyright in the Licensed Work is owned by Chainlink Labs Inc. and affiliates
+
 -----------------------------------------------------------------------------
 
 Parameters
 
-Licensor:             SmartContract Chainlink Limited SEZC
+Licensor:               Chainlink Labs Inc. and its affiliates
 
-Licensed Work:     	  Cross-Chain Interoperability Protocol v2.0
-The Licensed Work is (c) 2026 SmartContract Chainlink Limited SEZC
+Licensed Work:          The files contained in the bps/ directory of this repository and its subdirectories
 
-Additional Use Grant: Any uses listed and defined at [v2.0-CCIP-License-grants](https://github.com/smartcontractkit/chainlink-ccip/blob/contracts-ccip-v2.0.0/chains/evm/contracts/v2.0-CCIP-License-grants.md)
+The Licensed Work is (c) 2026 Chainlink Labs Inc. and its affiliates
 
-Change Date:       	  April 1, 2030
+Additional Use Grant:   Any uses listed and defined in this repository
 
-Change License:       MIT
+Change Date:            November 5, 2030
+
+Change License:         MIT
 
 -----------------------------------------------------------------------------
 
@@ -38,13 +43,13 @@ This License does not grant you any right in any trademark or logo of Licensor o
 
 TO THE EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSED WORK IS PROVIDED ON AN "AS IS" BASIS. LICENSOR HEREBY DISCLAIMS ALL WARRANTIES AND CONDITIONS, EXPRESS OR IMPLIED, INCLUDING (WITHOUT LIMITATION) WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND TITLE.
 
-MariaDB hereby grants you permission to use this License’s text to license your works, and to refer to it using the trademark "Business Source License", as long as you comply with the Covenants of Licensor below.
+MariaDB hereby grants you permission to use this License's text to license your works, and to refer to it using the trademark "Business Source License", as long as you comply with the Covenants of Licensor below.
 
 -----------------------------------------------------------------------------
 
 Covenants of Licensor
 
-In consideration of the right to use this License’s text and the "Business Source License" name and trademark, Licensor covenants to MariaDB, and to all other recipients of the licensed work to be provided by Licensor:
+In consideration of the right to use this License's text and the "Business Source License" name and trademark, Licensor covenants to MariaDB, and to all other recipients of the licensed work to be provided by Licensor:
 
 1. To specify as the Change License the GPL Version 2.0 or any later version, or a license that is compatible with GPL Version 2.0 or a later version, where "compatible" means that software provided under the Change License can be included in a program with software provided under GPL Version 2.0 or a later version. Licensor may specify additional Change Licenses without limitation.
 
