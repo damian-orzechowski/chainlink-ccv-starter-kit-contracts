@@ -326,6 +326,10 @@ contract DeployPriceAdapterTest is Test {
 
     assertTrue(vm.contains(err, string.concat("token ", vm.toString(OTHER_TOKEN), " is missing")), err);
     assertTrue(vm.contains(err, vm.toString(address(0xA2))), "names the recorded adapter");
+    assertTrue(
+      vm.contains(err, string.concat("make remove-price-adapter CHAIN=testchain TOKEN=", vm.toString(OTHER_TOKEN))),
+      "points at the retire command"
+    );
   }
 
   /// @dev Every disagreement in one message, so one run shows them all.
