@@ -94,10 +94,58 @@ contract WstETHUSDL2PriceAdapterTest is Test {
     );
   }
 
-  function test_ctor_reverts_onZeroSequencerFeed() public {
-    // [Medium] audit finding #10: the sequencer uptime feed is required.
-    vm.expectRevert(WstETHUSDL2PriceAdapter.ZeroAddress.selector);
+  function test_ctor_reverts_onZeroSequencerFeedWithGracePeriod() public {
+    // [Medium] audit finding #10 required the sequencer uptime feed. It is now optional,
+    // but only explicitly: a zero feed with a grace period is a forgotten address, not
+    // an opt-out, and still reverts.
+    vm.expectRevert(abi.encodeWithSelector(WstETHUSDL2PriceAdapter.GracePeriodWithoutSequencerFeed.selector, GRACE));
     _deploy(RATE_MAX, USD_MAX, address(0), GRACE);
+  }
+
+  function test_ctor_reverts_onZeroSequencerFeedWithMinGracePeriod() public {
+    uint256 grace = PriceFeedLib.GRACE_PERIOD_MIN;
+    vm.expectRevert(abi.encodeWithSelector(WstETHUSDL2PriceAdapter.GracePeriodWithoutSequencerFeed.selector, grace));
+    _deploy(RATE_MAX, USD_MAX, address(0), grace);
+  }
+
+  // ---------------------------------------------------------------------------
+  // without a sequencer uptime feed (explicit opt-out: feed 0, grace 0)
+  // ---------------------------------------------------------------------------
+
+  function test_noSequencer_ctor_acceptsZeroFeedAndZeroGrace() public {
+    WstETHUSDL2PriceAdapter noSeq = _deploy(RATE_MAX, USD_MAX, address(0), 0);
+    assertEq(address(noSeq.SEQUENCER_UPTIME_FEED()), address(0), "no feed");
+    assertEq(noSeq.GRACE_PERIOD(), 0, "no grace period");
+  }
+
+  function test_noSequencer_pricesLikeTheSequencerAdapter() public {
+    WstETHUSDL2PriceAdapter noSeq = _deploy(RATE_MAX, USD_MAX, address(0), 0);
+    assertEq(noSeq.getValueInUSDCents(1e18), 480_000);
+    assertEq(noSeq.getValueInUSDCents(2e18), adapter.getValueInUSDCents(2e18), "same math");
+  }
+
+  function test_noSequencer_stillEnforcesFeedStaleness() public {
+    WstETHUSDL2PriceAdapter noSeq = _deploy(RATE_MAX, USD_MAX, address(0), 0);
+    uint256 staleAt = block.timestamp - (USD_MAX + 1);
+    usdFeed.setUpdatedAt(staleAt);
+    vm.expectRevert(abi.encodeWithSelector(PriceFeedLib.StalePrice.selector, address(usdFeed), staleAt, USD_MAX));
+    noSeq.getValueInUSDCents(1e18);
+  }
+
+  function test_noSequencer_stillValidatesStaleness() public {
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        PriceFeedLib.InvalidMaxStaleness.selector, uint256(0), PriceFeedLib.STALENESS_MIN, PriceFeedLib.STALENESS_MAX
+      )
+    );
+    _deploy(0, USD_MAX, address(0), 0);
+  }
+
+  /// @dev The sequencer feed is never read: a down sequencer elsewhere cannot block it.
+  function test_noSequencer_ignoresAnySequencerState() public {
+    WstETHUSDL2PriceAdapter noSeq = _deploy(RATE_MAX, USD_MAX, address(0), 0);
+    sequencer.setAnswer(1); // the (unrelated) feed reports down
+    assertEq(noSeq.getValueInUSDCents(1e18), 480_000);
   }
 
   function test_ctor_reverts_onZeroRateStaleness() public {
