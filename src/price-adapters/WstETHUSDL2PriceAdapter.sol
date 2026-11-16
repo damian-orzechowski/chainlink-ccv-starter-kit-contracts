@@ -14,16 +14,26 @@ interface IERC20Decimals {
 ///         not expose Lido's mainnet rate. Composes two Chainlink feeds:
 ///           value_USD = amount_wstETH * (RATE_FEED: ETH per wstETH)
 ///                                     * (USD_FEED: USD per ETH)
-///         i.e. wstETH/USD = (wstETH/ETH) × (ETH/USD). Prices are refused while
-///         the L2 sequencer is down or in its post-recovery grace period.
+///         i.e. wstETH/USD = (wstETH/ETH) × (ETH/USD). When deployed with a
+///         sequencer uptime feed, prices are refused while the L2 sequencer is
+///         down or in its post-recovery grace period.
 /// @dev    Each feed has its own heartbeat, so staleness is configured per feed.
 ///         Assumes wstETH has 18 decimals; ETH is 18 decimals. Rounds down.
+/// @dev    The sequencer check is optional, for chains with no Chainlink sequencer
+///         uptime feed (e.g. chains that have no sequencer). Disabling it must be
+///         explicit: `sequencerUptimeFeed == address(0)` AND `gracePeriod == 0`.
+///         A zero feed with a non-zero grace period reverts, so a forgotten feed
+///         address cannot silently switch the check off; a set feed still requires a
+///         grace period within bounds.
 contract WstETHUSDL2PriceAdapter is IPriceAdapter {
   using PriceFeedLib for AggregatorV3Interface;
 
   error ZeroAddress();
   /// @notice The bound token's decimals don't match the adapter's assumption.
   error UnexpectedTokenDecimals(uint8 expected, uint8 actual);
+  /// @notice No sequencer uptime feed was given, but a grace period was: disabling
+  ///         the sequencer check requires a zero grace period too.
+  error GracePeriodWithoutSequencerFeed(uint256 gracePeriod);
 
   uint256 private constant WAD = 1e18; // wstETH & ETH decimals
   uint8 private constant TOKEN_DECIMALS = 18; // wstETH decimals (the WAD assumption)
@@ -39,16 +49,18 @@ contract WstETHUSDL2PriceAdapter is IPriceAdapter {
   uint8 public immutable USD_FEED_DECIMALS;
   uint256 public immutable USD_MAX_STALENESS; // seconds
 
-  AggregatorV3Interface public immutable SEQUENCER_UPTIME_FEED; // Chainlink L2 sequencer uptime feed
-  uint256 public immutable GRACE_PERIOD; // seconds to wait after sequencer recovery
+  AggregatorV3Interface public immutable SEQUENCER_UPTIME_FEED; // Chainlink L2 sequencer uptime feed; 0 = no check
+  uint256 public immutable GRACE_PERIOD; // seconds to wait after sequencer recovery; 0 when there is no feed
 
   /// @param wstETH            the wstETH token this adapter prices (must be 18-decimal).
   /// @param rateFeed          Chainlink wstETH/ETH feed (ETH per wstETH).
   /// @param usdFeed           Chainlink ETH/USD feed.
   /// @param rateMaxStaleness  max age (seconds) for the wstETH/ETH feed's round.
   /// @param usdMaxStaleness   max age (seconds) for the ETH/USD feed's round.
-  /// @param sequencerUptimeFeed  Chainlink L2 Sequencer Uptime Feed for this L2
-  /// @param gracePeriod       seconds to wait after sequencer recovery before trusting prices
+  /// @param sequencerUptimeFeed  Chainlink L2 Sequencer Uptime Feed for this L2, or
+  ///                          address(0) to price without a sequencer check.
+  /// @param gracePeriod       seconds to wait after sequencer recovery before trusting
+  ///                          prices; must be 0 when `sequencerUptimeFeed` is address(0).
   constructor(
     address wstETH,
     address rateFeed,
@@ -58,13 +70,16 @@ contract WstETHUSDL2PriceAdapter is IPriceAdapter {
     address sequencerUptimeFeed,
     uint256 gracePeriod
   ) {
-    if (wstETH == address(0) || rateFeed == address(0) || usdFeed == address(0) || sequencerUptimeFeed == address(0)) {
-      revert ZeroAddress();
-    }
+    if (wstETH == address(0) || rateFeed == address(0) || usdFeed == address(0)) revert ZeroAddress();
 
     PriceFeedLib.requireValidStaleness(rateMaxStaleness);
     PriceFeedLib.requireValidStaleness(usdMaxStaleness);
-    PriceFeedLib.requireValidGracePeriod(gracePeriod);
+    // No feed: the check is off, and only an explicit zero grace period says so.
+    if (sequencerUptimeFeed == address(0)) {
+      if (gracePeriod != 0) revert GracePeriodWithoutSequencerFeed(gracePeriod);
+    } else {
+      PriceFeedLib.requireValidGracePeriod(gracePeriod);
+    }
     TOKEN = wstETH;
     // The math assumes an 18-decimal token
     uint8 dec = IERC20Decimals(wstETH).decimals();
@@ -84,7 +99,10 @@ contract WstETHUSDL2PriceAdapter is IPriceAdapter {
     uint256 amount
   ) external view virtual returns (uint256) {
     // Reject reads while the L2 sequencer is down or in its post-recovery grace period
-    PriceFeedLib.requireSequencerUp(SEQUENCER_UPTIME_FEED, GRACE_PERIOD);
+    // (skipped when deployed without a sequencer uptime feed)
+    if (address(SEQUENCER_UPTIME_FEED) != address(0)) {
+      PriceFeedLib.requireSequencerUp(SEQUENCER_UPTIME_FEED, GRACE_PERIOD);
+    }
     // wstETH -> ETH wei: amount * rate / 10^rateDecimals
     uint256 rate = RATE_FEED.readFresh(RATE_MAX_STALENESS);
     uint256 ethWei = (amount * rate) / (10 ** RATE_FEED_DECIMALS);
