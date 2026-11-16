@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import { Test } from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 
-import { WstETHUSDPriceAdapter } from "../src/price-adapters/WstETHUSDPriceAdapter.sol";
-import { PriceFeedLib } from "../src/price-adapters/PriceFeedLib.sol";
+import {PriceFeedLib} from "../src/price-adapters/PriceFeedLib.sol";
+import {WstETHUSDPriceAdapter} from "../src/price-adapters/WstETHUSDPriceAdapter.sol";
 
-import { MockAggregatorV3 } from "./mocks/MockAggregatorV3.sol";
-import { MockWstETH } from "./mocks/MockWstETH.sol";
+import {MockAggregatorV3} from "./mocks/MockAggregatorV3.sol";
+import {MockWstETH} from "./mocks/MockWstETH.sol";
 
 /// @notice Unit tests for the mainnet wstETH -> USD-cents adapter.
 contract WstETHUSDPriceAdapterTest is Test {
