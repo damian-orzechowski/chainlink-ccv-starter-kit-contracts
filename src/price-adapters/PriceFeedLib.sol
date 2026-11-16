@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import { AggregatorV3Interface } from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 /// @title PriceFeedLib
 /// @notice Single, audited place for reading a Chainlink feed safely. Every
@@ -16,7 +16,9 @@ library PriceFeedLib {
   uint256 internal constant STALENESS_MAX = 7 days;
 
   /// @notice Revert unless `maxStaleness` is within [STALENESS_MIN, STALENESS_MAX].
-  function requireValidStaleness(uint256 maxStaleness) internal pure {
+  function requireValidStaleness(
+    uint256 maxStaleness
+  ) internal pure {
     if (maxStaleness < STALENESS_MIN || maxStaleness > STALENESS_MAX) {
       revert InvalidMaxStaleness(maxStaleness, STALENESS_MIN, STALENESS_MAX);
     }
@@ -35,14 +37,19 @@ library PriceFeedLib {
   uint256 internal constant GRACE_PERIOD_MAX = 6 hours;
 
   /// @notice Revert unless `gracePeriod` is within [GRACE_PERIOD_MIN, GRACE_PERIOD_MAX].
-  function requireValidGracePeriod(uint256 gracePeriod) internal pure {
+  function requireValidGracePeriod(
+    uint256 gracePeriod
+  ) internal pure {
     if (gracePeriod < GRACE_PERIOD_MIN || gracePeriod > GRACE_PERIOD_MAX) {
       revert InvalidGracePeriod(gracePeriod, GRACE_PERIOD_MIN, GRACE_PERIOD_MAX);
     }
   }
 
   /// @notice Revert unless the L2 sequencer is up  for longer than `gracePeriod`.
-  function requireSequencerUp(AggregatorV3Interface sequencerUptimeFeed, uint256 gracePeriod) internal view {
+  function requireSequencerUp(
+    AggregatorV3Interface sequencerUptimeFeed,
+    uint256 gracePeriod
+  ) internal view {
     (, int256 answer, uint256 startedAt,,) = sequencerUptimeFeed.latestRoundData();
     if (answer != 0 || startedAt == 0) revert SequencerDown();
     uint256 timeSinceUp = block.timestamp - startedAt;
@@ -52,7 +59,10 @@ library PriceFeedLib {
   /// @notice Read `latestRoundData`, reverting if the answer is non-positive or
   ///         older than `maxStaleness` seconds.
   /// @return answer the feed answer as a uint256 (guaranteed > 0).
-  function readFresh(AggregatorV3Interface feed, uint256 maxStaleness) internal view returns (uint256 answer) {
+  function readFresh(
+    AggregatorV3Interface feed,
+    uint256 maxStaleness
+  ) internal view returns (uint256 answer) {
     (, int256 rawAnswer,, uint256 updatedAt,) = feed.latestRoundData();
     if (rawAnswer <= 0) revert NonPositivePrice(address(feed), rawAnswer);
     // updatedAt == 0 means "no data yet" and is treated as stale.
