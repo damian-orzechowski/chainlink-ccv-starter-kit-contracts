@@ -119,13 +119,32 @@ library Types {
     FactoryRoles roles;
   }
 
+  /// @dev One IPriceAdapter for a BpsFeeCommitteeVerifier, keyed by the token it prices
+  ///      (unique per chain). Adapters are ownerless and immutable: these are constructor
+  ///      arguments, declared BEFORE deploying it, and changing one means a new adapter.
+  ///      The fields are the union of every adapter's arguments; `contractName` decides
+  ///      which apply, and the loader rejects a key that adapter does not take.
+  /// @dev Exempt from the DriftCheck rule above: nothing on-chain can move away from
+  ///      these values after construction.
+  struct PriceAdapterConfig {
+    string contractName; // WstETHUSDPriceAdapter | WstETHUSDL2PriceAdapter
+    address token; // the token the adapter prices
+    address rateFeed; // L2 only: wstETH/ETH feed
+    address usdFeed; // L1: wstETH/USD feed; L2: ETH/USD feed
+    uint256 rateMaxStaleness; // L2 only, seconds
+    uint256 usdMaxStaleness; // seconds (the L1 adapter's `maxStaleness`)
+    address sequencerUptimeFeed; // L2 only
+    uint256 gracePeriod; // L2 only, seconds
+  }
+
   /// @dev One chain's operator config: every verifier it runs, then the single resolver
-  ///      and factory.
+  ///      and factory, then the price adapters its bps verifiers use.
   struct OperatorConfig {
     string aliasName;
     VerifierConfig[] verifiers; // one entry per verifier; tags unique per chain
     ResolverConfig resolver;
     FactoryConfig factory;
+    PriceAdapterConfig[] priceAdapters; // optional; tokens unique per chain
   }
 
   // --------------------------- config/deployments ---------------------------
@@ -152,11 +171,22 @@ library Types {
   struct VerifierDeployment {
     bytes4 versionTag; // immutable on-chain
     address addr;
+    // Which implementation was deployed (CommitteeVerifier or a subclass sharing its
+    // constructor, e.g. BpsFeeCommitteeVerifier). Selects the source verify.sh verifies.
+    string contractName;
     address feeAggregator; // DynamicConfig member; mutable on-chain afterwards
     address allowlistAdmin; // DynamicConfig member; mutable on-chain afterwards
     string[] storageLocations; // mutable on-chain afterwards
     address rmn; // immutable on-chain
     bytes encodedArgs; // abi.encode(dynamicConfig, storageLocations, rmn, versionTag)
+  }
+
+  /// @dev One deployed IPriceAdapter: the declared params it was constructed from, as of
+  ///      the deploy. Adapters are ownerless and immutable, so this is all of their state.
+  struct PriceAdapterDeployment {
+    address addr;
+    PriceAdapterConfig args;
+    bytes encodedArgs; // abi.encode of that adapter's own constructor arguments
   }
 
   struct Deployment {
@@ -169,5 +199,7 @@ library Types {
     // config/operator.json enumerates the tag identities repo-wide; this record maps
     // the deployed ones to addresses.
     VerifierDeployment[] verifiers;
+    // Price adapters for the BpsFeeCommitteeVerifier, one per token.
+    PriceAdapterDeployment[] priceAdapters;
   }
 }

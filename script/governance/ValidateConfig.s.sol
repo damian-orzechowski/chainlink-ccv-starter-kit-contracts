@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
+import {BpsConfigLib} from "../../src/lib/BpsConfigLib.sol";
 import {ConfigLib} from "../../src/lib/ConfigLib.sol";
+import {PriceAdapterLib} from "../../src/lib/PriceAdapterLib.sol";
 import {Types} from "../../src/lib/Types.sol";
 import {Script} from "forge-std/Script.sol";
 import {Vm} from "forge-std/Vm.sol";
@@ -13,7 +15,8 @@ import {console2} from "forge-std/console2.sol";
 ///         cross-file agreements (lane endpoints exist, selectors match, the operator
 ///         file carries a roles entry for every lane-pinned tag and the source's a
 ///         committee for it, a bidirectional pair agrees on the tag and mirrors its
-///         selectors, every recorded resolver used the repo-wide resolverSalt). One
+///         selectors, every recorded resolver used the repo-wide resolverSalt, every
+///         recorded price adapter is still declared with the args it was built from). One
 ///         [PASS]/[FAIL] line per file, no RPC.
 /// @dev The action scripts parse lazily — a broken file surfaces only when the first
 ///      script touches it, possibly mid-ceremony. This runs the same parses up front.
@@ -58,10 +61,53 @@ contract ConfigLoader {
   }
 }
 
+/// @dev The bps-only keys, through their own seam so the stock path above is unchanged.
+///      Each call reverts with the reason a file fails.
+contract BpsConfigLoader {
+  /// @notice A lane's `bpsFeeConfig`: the setFeeConfig bounds (enforced by the loader),
+  ///         and a declared policy must not target a verifier recorded as a stock one.
+  function checkLane(
+    string calldata path
+  ) external view returns (bool declared) {
+    BpsConfigLib.LaneBpsFee memory lane = BpsConfigLib.readLaneBpsFeeByPath(path);
+    declared = BpsConfigLib.isDeclared(lane.fee);
+    if (declared) {
+      BpsConfigLib.requireBpsTargetIfDeclared(lane.sourceAlias, lane.versionTag, string.concat("lane ", lane.laneName));
+    }
+  }
+
+  /// @notice Each verifier entry's `requireAllTokensPriced`, same target rule.
+  function checkOperator(
+    string calldata path,
+    string calldata aliasName
+  ) external view {
+    BpsConfigLib.VerifierBpsPolicy[] memory policies = BpsConfigLib.readVerifierPoliciesByPath(path);
+    for (uint256 i = 0; i < policies.length; ++i) {
+      if (!policies[i].requireAllTokensPriced) continue;
+      BpsConfigLib.requireBpsTargetIfDeclared(aliasName, policies[i].versionTag, "requireAllTokensPriced");
+    }
+  }
+
+  /// @notice `priceAdapters[]` vs the adapters recorded in config/deployments/<alias>.json:
+  ///         an adapter cannot change after deploy, so a declaration that no longer matches
+  ///         its record has silently stopped describing the chain.
+  function checkPriceAdapters(
+    string calldata path,
+    string calldata aliasName
+  ) external view {
+    Types.Deployment memory deployment = ConfigLib.readDeploymentOrEmpty(aliasName);
+    if (deployment.priceAdapters.length == 0) return;
+    string memory err =
+      PriceAdapterLib.declaredVsRecordedError(ConfigLib.readOperatorByPath(path).priceAdapters, deployment);
+    require(bytes(err).length == 0, err);
+  }
+}
+
 contract ValidateConfig is Script {
   error ValidationFailed(uint256 failures);
 
   ConfigLoader private s_loader;
+  BpsConfigLoader private s_bpsLoader;
 
   // Mirrors ConfigLib's private dir layout.
   string private constant CHAINS_DIR = "config/chains/";
@@ -81,6 +127,8 @@ contract ValidateConfig is Script {
     );
     s_loader = new ConfigLoader();
     vm.allowCheatcodes(address(s_loader));
+    s_bpsLoader = new BpsConfigLoader();
+    vm.allowCheatcodes(address(s_bpsLoader));
 
     _checkOperatorFile();
     _checkChains();
@@ -156,6 +204,7 @@ contract ValidateConfig is Script {
           _fail(rel, string.concat("declares alias '", declared, "' (must equal the filename)"));
         } else {
           _pass(rel, "");
+          _checkOperatorBps(rel, paths[i], aliasName);
         }
       } catch Error(string memory reason) {
         _fail(rel, reason);
@@ -179,6 +228,7 @@ contract ValidateConfig is Script {
           continue;
         }
         _pass(rel, "");
+        _checkLaneBps(rel, paths[i]);
         _checkLaneEndpoint(rel, lane, lane.source.aliasName, lane.source.chainSelector, "source");
         _checkLaneEndpoint(rel, lane, lane.dest.aliasName, lane.dest.chainSelector, "dest");
         parsed[parsedCount++] = lane;
@@ -291,6 +341,38 @@ contract ValidateConfig is Script {
           " - signatureConfig signs messages leaving this chain; every destination applies it"
         )
       );
+    }
+  }
+
+  /// @dev Bps-only keys, reported against the same file. Silent when the file has none.
+  function _checkLaneBps(
+    string memory rel,
+    string memory path
+  ) private {
+    try s_bpsLoader.checkLane(path) returns (bool) {}
+    catch Error(string memory reason) {
+      _fail(rel, reason);
+    } catch {
+      _fail(rel, "bpsFeeConfig malformed");
+    }
+  }
+
+  function _checkOperatorBps(
+    string memory rel,
+    string memory path,
+    string memory aliasName
+  ) private {
+    try s_bpsLoader.checkOperator(path, aliasName) {}
+    catch Error(string memory reason) {
+      _fail(rel, reason);
+    } catch {
+      _fail(rel, "requireAllTokensPriced malformed");
+    }
+    try s_bpsLoader.checkPriceAdapters(path, aliasName) {}
+    catch Error(string memory reason) {
+      _fail(rel, reason);
+    } catch {
+      _fail(rel, "priceAdapters could not be compared with the deployment record");
     }
   }
 

@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
+import {BpsFeeCommitteeVerifier} from "../../src/bps/BpsFeeCommitteeVerifier.sol";
+import {BpsFeeConfig} from "../../src/bps/BpsFeeConfig.sol";
+import {BpsConfigLib} from "../../src/lib/BpsConfigLib.sol";
 import {ConfigLib} from "../../src/lib/ConfigLib.sol";
 import {FinalityConfigLib} from "../../src/lib/FinalityConfigLib.sol";
+import {PriceAdapterLib} from "../../src/lib/PriceAdapterLib.sol";
 import {Types} from "../../src/lib/Types.sol";
 import {CREATE2Factory} from "@chainlink/contracts-ccip/contracts/CREATE2Factory.sol";
 import {CommitteeVerifier} from "@chainlink/contracts-ccip/contracts/ccvs/CommitteeVerifier.sol";
@@ -44,6 +48,14 @@ import {console2} from "forge-std/console2.sol";
 ///      inbound registration whose tag is not in the record is drift (a registered
 ///      inbound verifier is attack surface), as is an outbound entry no lane declares.
 ///
+/// @dev A recorded BpsFeeCommitteeVerifier gets one more pass, `checkBpsFees`, over the
+///      settings only it has. It is separate from `checkAll` and reads nothing for a
+///      stock verifier, so the standard path is unchanged.
+///
+/// @dev Recorded price adapters get `checkPriceAdapters`: each adapter's immutables read
+///      back on-chain vs the args the record says it was built from. The operator file's
+///      declaration vs the record is `make validate-config`'s job (no RPC needed).
+///
 /// Usage (direct):
 ///   forge script script/governance/DriftCheck.s.sol --sig "run(string)" sepolia --rpc-url $SEPOLIA_RPC_URL
 /// Usage (CI, with exit-code mapping):
@@ -63,6 +75,10 @@ contract DriftCheck is Script {
     console2.log("  lanes considered:", lanes.length);
 
     uint256 drift = checkAll(deployment, operator, lanes);
+    // A no-op unless the record holds a BpsFeeCommitteeVerifier.
+    drift += checkBpsFees(deployment, BpsConfigLib.readLaneBpsFees(), BpsConfigLib.readVerifierPolicies(chainAlias));
+    // A no-op unless the record holds price adapters.
+    drift += checkPriceAdapters(deployment);
 
     if (drift > 0) {
       console2.log("DRIFT_DETECTED total mismatches:", drift);
@@ -354,6 +370,152 @@ contract DriftCheck is Script {
         );
       }
     }
+  }
+
+  /// @notice The bps-only state of every recorded BpsFeeCommitteeVerifier vs config:
+  ///         requireAllTokensPriced vs its verifier entry, each recorded price adapter vs
+  ///         the verifier's token -> adapter mapping, and each lane leaving this chain
+  ///         under its tag vs the fee config keyed by the lane's destination. An absent
+  ///         `bpsFeeConfig` / `requireAllTokensPriced` expects the contract default.
+  /// @dev The token -> adapter mapping cannot be enumerated on-chain, so only tokens the
+  ///      record knows are compared. Bps settings declared for a verifier the record says
+  ///      is a stock CommitteeVerifier can never be applied, so they count as drift too.
+  function checkBpsFees(
+    Types.Deployment memory deployment,
+    BpsConfigLib.LaneBpsFee[] memory laneFees,
+    BpsConfigLib.VerifierBpsPolicy[] memory policies
+  ) public view returns (uint256 drift) {
+    for (uint256 i = 0; i < deployment.verifiers.length; ++i) {
+      Types.VerifierDeployment memory entry = deployment.verifiers[i];
+      string memory prefix = string.concat("verifier ", ConfigLib.tagToString(entry.versionTag), " ");
+      bool declaredRequireAll = BpsConfigLib.requireAllTokensPricedFor(policies, entry.versionTag);
+
+      if (!BpsConfigLib.isBpsVerifier(entry)) {
+        drift += _bpsDeclaredOnStockVerifier(deployment.aliasName, entry.versionTag, declaredRequireAll, laneFees);
+        continue;
+      }
+
+      require(entry.addr.code.length != 0, "DriftCheck: no code at recorded bps verifier (wrong --rpc-url?)");
+      BpsFeeCommitteeVerifier bps = BpsFeeCommitteeVerifier(entry.addr);
+      drift += _diffBool(
+        string.concat(prefix, "requireAllTokensPriced"), declaredRequireAll, bps.requireAllTokensPriced()
+      );
+
+      for (uint256 j = 0; j < deployment.priceAdapters.length; ++j) {
+        address token = deployment.priceAdapters[j].args.token;
+        drift += _diffAddress(
+          string.concat(prefix, "price adapter for token ", vm.toString(token)),
+          deployment.priceAdapters[j].addr,
+          address(bps.getPriceAdapter(token))
+        );
+      }
+
+      for (uint256 j = 0; j < laneFees.length; ++j) {
+        if (!_appliesTo(laneFees[j], deployment.aliasName, entry.versionTag)) continue;
+        drift += _diffFeeConfig(
+          string.concat("lane ", laneFees[j].laneName, " bpsFeeConfig"),
+          laneFees[j].fee,
+          bps.getFeeConfig(laneFees[j].destSelector)
+        );
+      }
+    }
+  }
+
+  /// @notice Each recorded price adapter's on-chain getters vs its recorded args, one drift
+  ///         per differing field. An adapter that is not one of the two known kinds (or
+  ///         prices another token) is one drift: its args cannot be read back.
+  /// @dev Adapters are immutable, so drift here never means "someone changed it": it
+  ///      means the record names the wrong address, or was edited after the deploy.
+  ///      A codeless adapter reverts without the marker, like every other contract.
+  function checkPriceAdapters(
+    Types.Deployment memory deployment
+  ) public view returns (uint256 drift) {
+    for (uint256 i = 0; i < deployment.priceAdapters.length; ++i) {
+      Types.PriceAdapterDeployment memory recorded = deployment.priceAdapters[i];
+      string memory label =
+        string.concat("price adapter ", vm.toString(recorded.addr), " for token ", vm.toString(recorded.args.token));
+      require(
+        recorded.addr.code.length != 0, string.concat("DriftCheck: no code at recorded ", label, " (wrong --rpc-url?)")
+      );
+      (bool known, Types.PriceAdapterConfig memory live) = PriceAdapterLib.describe(recorded.addr);
+      if (!known) {
+        console2.log(
+          string.concat(
+            "DRIFT_DETECTED ",
+            label,
+            " is not a ",
+            ConfigLib.L1_PRICE_ADAPTER,
+            " or ",
+            ConfigLib.L2_PRICE_ADAPTER,
+            " (recorded as ",
+            recorded.args.contractName,
+            ")"
+          )
+        );
+        ++drift;
+        continue;
+      }
+      string[] memory fields = PriceAdapterLib.diff(recorded.args, live);
+      for (uint256 j = 0; j < fields.length; ++j) {
+        console2.log(string.concat("DRIFT_DETECTED ", label, " (recorded != on-chain): ", fields[j]));
+      }
+      drift += fields.length;
+    }
+  }
+
+  /// @dev Bps settings aimed at a stock CommitteeVerifier: each one is drift.
+  function _bpsDeclaredOnStockVerifier(
+    string memory chainAlias,
+    bytes4 tag,
+    bool declaredRequireAll,
+    BpsConfigLib.LaneBpsFee[] memory laneFees
+  ) private pure returns (uint256 drift) {
+    string memory suffix =
+      string.concat(" - verifier ", ConfigLib.tagToString(tag), " is not a BpsFeeCommitteeVerifier");
+    if (declaredRequireAll) {
+      console2.log(string.concat("DRIFT_DETECTED requireAllTokensPriced declared", suffix));
+      ++drift;
+    }
+    for (uint256 j = 0; j < laneFees.length; ++j) {
+      if (!_appliesTo(laneFees[j], chainAlias, tag) || !BpsConfigLib.isDeclared(laneFees[j].fee)) continue;
+      console2.log(string.concat("DRIFT_DETECTED lane ", laneFees[j].laneName, " declares a bpsFeeConfig", suffix));
+      ++drift;
+    }
+  }
+
+  function _appliesTo(
+    BpsConfigLib.LaneBpsFee memory lane,
+    string memory chainAlias,
+    bytes4 tag
+  ) private pure returns (bool) {
+    return _stringsEqual(lane.sourceAlias, chainAlias) && lane.versionTag == tag;
+  }
+
+  function _diffFeeConfig(
+    string memory label,
+    BpsFeeConfig memory expected,
+    BpsFeeConfig memory actual
+  ) private pure returns (uint256) {
+    if (BpsConfigLib.feeConfigEq(expected, actual)) return 0;
+    console2.log(string.concat("DRIFT_DETECTED ", label));
+    console2.log("  expected:", _describeFee(expected));
+    console2.log("  actual:  ", _describeFee(actual));
+    return 1;
+  }
+
+  function _describeFee(
+    BpsFeeConfig memory fee
+  ) private pure returns (string memory) {
+    return string.concat(
+      "enabled=",
+      vm.toString(fee.enabled),
+      " feeBps=",
+      vm.toString(uint256(fee.feeBps)),
+      " minFeeUSDCents=",
+      vm.toString(uint256(fee.minFeeUSDCents)),
+      " capUSDCents=",
+      vm.toString(uint256(fee.capUSDCents))
+    );
   }
 
   // ---------------------------------------------------------------------------

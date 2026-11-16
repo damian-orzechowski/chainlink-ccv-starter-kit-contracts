@@ -103,6 +103,10 @@ make apply-allowlists     CHAIN=sepolia TAG=$TAG RPC_URL=$SEPOLIA_RPC_URL OUTPUT
 make apply-signature-configs CHAIN=base_sepolia TAG=$TAG RPC_URL=$BASE_SEPOLIA_RPC_URL OUTPUT_MODE=EOA
 ```
 
+A `BpsFeeCommitteeVerifier` takes one more step on the source chain, after
+`apply-remote-config`: `make apply-bps-config` registers its price adapters and applies
+each lane's `bpsFeeConfig`. See [BPS fee configuration](deploy.md#bps-fee-configuration).
+
 - **`ApplyRemoteChainConfigUpdates`** — per destination: the local router to send through,
   the fee in US dollar cents, and the gas and payload size reserved for verifying on
   arrival. A zero `router` here is the **only outbound pause** in the system, so the script
