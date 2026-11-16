@@ -88,7 +88,7 @@ contract BpsFeeCommitteeVerifier is CommitteeVerifier {
   function getFee(
     uint64 destChainSelector,
     Client.EVM2AnyMessage memory message,
-    bytes memory extraArgs,
+    bytes memory, // extraArgs
     bytes4 requestedFinality
   )
     external
