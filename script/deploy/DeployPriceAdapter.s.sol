@@ -111,8 +111,12 @@ contract DeployPriceAdapter is Script {
       console2.log("  rateMaxStaleness (s):", c.rateMaxStaleness);
       console2.log("  usdFeed (ETH/USD):", c.usdFeed);
       console2.log("  usdMaxStaleness (s):", c.usdMaxStaleness);
-      console2.log("  sequencerUptimeFeed:", c.sequencerUptimeFeed);
-      console2.log("  gracePeriod (s):", c.gracePeriod);
+      if (c.sequencerUptimeFeed == address(0)) {
+        console2.log("  sequencerUptimeFeed: none (no sequencer check)");
+      } else {
+        console2.log("  sequencerUptimeFeed:", c.sequencerUptimeFeed);
+        console2.log("  gracePeriod (s):", c.gracePeriod);
+      }
     } else {
       console2.log("  usdFeed (wstETH/USD):", c.usdFeed);
       console2.log("  maxStaleness (s):", c.usdMaxStaleness);
