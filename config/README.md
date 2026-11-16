@@ -214,8 +214,10 @@ setting pushed on-chain.
       "rateMaxStaleness": 86400,
       "usdFeed":  "0x...",                     // Chainlink ETH/USD
       "usdMaxStaleness": 3600,
-      "sequencerUptimeFeed": "0x...",          // Chainlink L2 Sequencer Uptime Feed
-      "gracePeriod": 3600                      // seconds after sequencer recovery
+      "sequencerUptimeFeed": "0x...",          // Chainlink L2 Sequencer Uptime Feed, or the
+                                               // zero address for no sequencer check
+      "gracePeriod": 3600                      // seconds after sequencer recovery; 0 with
+                                               // a zero sequencerUptimeFeed, else [60, 21600]
     }
   ]
 }
@@ -227,6 +229,13 @@ setting pushed on-chain.
 > `3600`, but check each feed's heartbeat on the target L2. Staleness bounds must lie in
 > `[60, 604800]` and `gracePeriod` in `[60, 21600]` (`PriceFeedLib`); the constructor
 > reverts otherwise.
+>
+> **No sequencer uptime feed**: on a chain Chainlink publishes no sequencer uptime feed
+> for, set `"sequencerUptimeFeed": "0x0000000000000000000000000000000000000000"` **and**
+> `"gracePeriod": 0`. The adapter then prices without a sequencer check. Both keys stay
+> required, and the opt-out must be the explicit pair: a zero feed with any other
+> `gracePeriod` is rejected by the config loader (and by the constructor,
+> `GracePeriodWithoutSequencerFeed`), so a forgotten address cannot switch the check off.
 
 > **`allowedFinality` is the ALLOWED finality** set on the verifier via
 > `setAllowedFinalityConfig`: the requests a sender may make, as alternatives. Full finality

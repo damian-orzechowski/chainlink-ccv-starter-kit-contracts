@@ -569,9 +569,35 @@ library ConfigLib {
     if (isL2) {
       a.rateFeed = _requiredAddress(json, key, "rateFeed", path);
       a.rateMaxStaleness = _requiredUint(json, key, "rateMaxStaleness", path);
-      a.sequencerUptimeFeed = _requiredAddress(json, key, "sequencerUptimeFeed", path);
       a.gracePeriod = _requiredUint(json, key, "gracePeriod", path);
+      a.sequencerUptimeFeed = _sequencerUptimeFeed(json, key, a.gracePeriod, path);
     }
+  }
+
+  /// @dev Both keys stay required. A zero `sequencerUptimeFeed` disables the adapter's
+  ///      sequencer check, and only together with `gracePeriod: 0`: the same explicit
+  ///      pair the constructor demands, rejected here with a hint instead of a bare revert.
+  function _sequencerUptimeFeed(
+    string memory json,
+    string memory key,
+    uint256 gracePeriod,
+    string memory path
+  ) private view returns (address value) {
+    string memory full = string.concat(key, ".sequencerUptimeFeed");
+    require(vm.keyExistsJson(json, full), string.concat("ConfigLib: missing ", full, " in ", path));
+    value = vm.parseJsonAddress(json, full);
+    require(
+      value != address(0) || gracePeriod == 0,
+      string.concat(
+        "ConfigLib: zero address at ",
+        full,
+        " in ",
+        path,
+        " - to deploy without a sequencer check set ",
+        key,
+        ".gracePeriod to 0 as well"
+      )
+    );
   }
 
   function _requiredAddress(

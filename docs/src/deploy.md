@@ -159,7 +159,7 @@ adapter in `config/operator/chains/<alias>.json` → `priceAdapters[]` first (se
 | `contract` | Where | Prices wstETH as |
 |---|---|---|
 | `WstETHUSDPriceAdapter` | Ethereum | one wstETH/USD feed |
-| `WstETHUSDL2PriceAdapter` | L2s | wstETH/ETH × ETH/USD, refused while the sequencer is down or in its grace period |
+| `WstETHUSDL2PriceAdapter` | L2s | wstETH/ETH × ETH/USD, refused while the sequencer is down or in its grace period (no check with `sequencerUptimeFeed` zero and `gracePeriod` 0) |
 
 `DeployPriceAdapter` deploys the entry for `TOKEN` with plain `CREATE` and appends it to
 `deployments/<alias>.json` → `priceAdapters[]`. Adapters have no owner and nothing
@@ -183,7 +183,8 @@ the copies in step:
 | `TOKEN` non-zero | deploy argument | `DeployPriceAdapter: token must be non-zero` |
 | entry declared for `TOKEN` | `config/operator/chains/<alias>.json` → `priceAdapters[]` | `ConfigLib: no priceAdapters entry for token …` |
 | every key the `contract` takes, non-zero addresses, no other key | same | `ConfigLib: missing …` / `zero address at …` / `unknown key …` |
-| staleness in `[60, 604800]`, `gracePeriod` in `[60, 21600]`, token is 18-decimal | same | adapter constructor (`InvalidMaxStaleness` / `InvalidGracePeriod` / `UnexpectedTokenDecimals`) |
+| `sequencerUptimeFeed` may be zero only with `gracePeriod: 0` (no sequencer check) | same | `ConfigLib: zero address at ….sequencerUptimeFeed … set ….gracePeriod to 0 as well` |
+| staleness in `[60, 604800]`, `gracePeriod` in `[60, 21600]` when a sequencer feed is set, token is 18-decimal | same | adapter constructor (`InvalidMaxStaleness` / `InvalidGracePeriod` / `UnexpectedTokenDecimals`) |
 
 After deploying, the script prices one token through the live feeds. A revert there is
 only a **warning**, because a testnet feed may simply be stale, but it also catches a

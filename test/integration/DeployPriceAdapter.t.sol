@@ -103,6 +103,45 @@ contract DeployPriceAdapterTest is Test {
     );
   }
 
+  /// @dev The explicit opt-out: zero feed AND zero grace period, read back as such.
+  function test_readOperator_acceptsNoSequencerFeedWithZeroGrace() public {
+    Types.OperatorConfig memory op = _readOperator("no-sequencer", _l2EntryWith(OTHER_TOKEN, address(0), 0));
+    Types.PriceAdapterConfig memory l2 = ConfigLib.priceAdapterConfigByToken(op, OTHER_TOKEN);
+    assertEq(l2.sequencerUptimeFeed, address(0));
+    assertEq(l2.gracePeriod, 0);
+  }
+
+  /// @dev A zero feed with a grace period reads as a forgotten address, not an opt-out.
+  function test_readOperator_rejectsNoSequencerFeedWithAGracePeriod() public {
+    _expectOperatorRevert(
+      "no-sequencer-grace",
+      _l2EntryWith(OTHER_TOKEN, address(0), 3600),
+      "zero address at .priceAdapters[0].sequencerUptimeFeed"
+    );
+    _expectOperatorRevert(
+      "no-sequencer-grace-hint",
+      _l2EntryWith(OTHER_TOKEN, address(0), 60),
+      "set .priceAdapters[0].gracePeriod to 0 as well"
+    );
+  }
+
+  /// @dev Opting out still takes both keys: an omitted feed is never read as zero.
+  function test_readOperator_stillRequiresTheSequencerFeedKey() public {
+    _expectOperatorRevert(
+      "no-sequencer-key",
+      string.concat(
+        '{"contract":"WstETHUSDL2PriceAdapter","token":"',
+        vm.toString(OTHER_TOKEN),
+        '","rateFeed":"',
+        vm.toString(FEED_A),
+        '","rateMaxStaleness":86400,"usdFeed":"',
+        vm.toString(FEED_B),
+        '","usdMaxStaleness":3600,"gracePeriod":0}'
+      ),
+      "missing .priceAdapters[0].sequencerUptimeFeed"
+    );
+  }
+
   function test_readOperator_rejectsAnUnknownContract() public {
     _expectOperatorRevert(
       "unknown-contract", '{"contract":"SomethingElse"}', "must be WstETHUSDPriceAdapter or WstETHUSDL2PriceAdapter"
@@ -233,6 +272,34 @@ contract DeployPriceAdapterTest is Test {
         c.token, c.rateFeed, c.usdFeed, c.rateMaxStaleness, c.usdMaxStaleness, c.sequencerUptimeFeed, c.gracePeriod
       )
     );
+  }
+
+  /// @dev Deployed without a sequencer feed: prices, records the zero pair, and reads back
+  ///      from chain identical to the declaration (so drift stays clean).
+  function test_createAdapter_l2WithoutSequencerFeed() public {
+    MockWstETH token = new MockWstETH();
+    Types.PriceAdapterConfig memory c;
+    c.contractName = "WstETHUSDL2PriceAdapter";
+    c.token = address(token);
+    c.rateFeed = address(new MockAggregatorV3(18, 1.2e18, block.timestamp));
+    c.usdFeed = address(new MockAggregatorV3(8, 4000e8, block.timestamp));
+    c.rateMaxStaleness = 86_400;
+    c.usdMaxStaleness = 3600;
+
+    Types.PriceAdapterDeployment memory r = harness.create(c);
+
+    WstETHUSDL2PriceAdapter adapter = WstETHUSDL2PriceAdapter(r.addr);
+    assertEq(address(adapter.SEQUENCER_UPTIME_FEED()), address(0));
+    assertEq(adapter.GRACE_PERIOD(), 0);
+    assertEq(adapter.getValueInUSDCents(1e18), 480_000, "1.2 ETH at $4000");
+    assertEq(
+      r.encodedArgs,
+      abi.encode(c.token, c.rateFeed, c.usdFeed, c.rateMaxStaleness, c.usdMaxStaleness, address(0), uint256(0))
+    );
+
+    (bool known, Types.PriceAdapterConfig memory onChain) = lib.describe(r.addr);
+    assertTrue(known, "described as an L2 adapter");
+    assertEq(lib.diff(c, onChain).length, 0, "no drift against the declaration");
   }
 
   function test_recordAdapter_appendsPerToken() public view {
@@ -451,6 +518,14 @@ contract DeployPriceAdapterTest is Test {
   function _l2Entry(
     address token
   ) internal pure returns (string memory) {
+    return _l2EntryWith(token, SEQUENCER, 3600);
+  }
+
+  function _l2EntryWith(
+    address token,
+    address sequencer,
+    uint256 grace
+  ) internal pure returns (string memory) {
     return string.concat(
       '{"contract":"WstETHUSDL2PriceAdapter","token":"',
       vm.toString(token),
@@ -459,8 +534,10 @@ contract DeployPriceAdapterTest is Test {
       '","rateMaxStaleness":86400,"usdFeed":"',
       vm.toString(FEED_B),
       '","usdMaxStaleness":3600,"sequencerUptimeFeed":"',
-      vm.toString(SEQUENCER),
-      '","gracePeriod":3600}'
+      vm.toString(sequencer),
+      '","gracePeriod":',
+      vm.toString(grace),
+      "}"
     );
   }
 
@@ -544,6 +621,12 @@ contract PriceAdapterLibHarness {
     Types.PriceAdapterConfig memory actual
   ) external pure returns (string[] memory) {
     return PriceAdapterLib.diff(expected, actual);
+  }
+
+  function describe(
+    address adapter
+  ) external view returns (bool known, Types.PriceAdapterConfig memory c) {
+    return PriceAdapterLib.describe(adapter);
   }
 }
 
