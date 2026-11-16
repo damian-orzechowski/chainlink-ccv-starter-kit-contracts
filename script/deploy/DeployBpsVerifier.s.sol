@@ -13,9 +13,11 @@ import {CommitteeVerifier} from "@chainlink/contracts-ccip/contracts/ccvs/Commit
 ///
 /// @dev BpsFeeCommitteeVerifier IS a CommitteeVerifier, so every configure / ownership /
 ///      fee / governance script works on it unchanged by tag. Its own bps settings
-///      (setFeeConfig, setPriceAdapter(s), setRequireAllTokensPriced) are owner calls made
-///      after deploy; until then getFee falls back to the flat remoteChainConfig fee.
-///      setFeeConfig needs the destination's remote chain config applied first.
+///      (price adapters, each lane's bpsFeeConfig, requireAllTokensPriced) are pushed
+///      after deploy by `make apply-bps-config` (ApplyBpsFeeConfig, run by the owner);
+///      until then getFee falls back to the flat remoteChainConfig fee. Run it after
+///      `make apply-remote-config`: setFeeConfig needs the destination's remote chain
+///      config applied first.
 ///
 /// Usage:
 ///   OUTPUT_MODE=EOA forge script script/deploy/DeployBpsVerifier.s.sol --tc DeployBpsVerifier \
