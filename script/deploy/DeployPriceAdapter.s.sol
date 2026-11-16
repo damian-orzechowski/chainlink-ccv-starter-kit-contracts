@@ -23,8 +23,9 @@ import {console2} from "forge-std/console2.sol";
 ///      ALLOW_ADAPTER_REPLACE=true replaces that entry (the old adapter stays deployed,
 ///      unused once the verifier is re-pointed at the new one).
 ///
-/// @dev Deploying does NOT register the adapter on any verifier: the
-///      BpsFeeCommitteeVerifier owner calls setPriceAdapter(token, adapter) afterwards.
+/// @dev Deploying does NOT register the adapter on any verifier: `make apply-bps-config`
+///      (ApplyBpsFeeConfig, run by the BpsFeeCommitteeVerifier owner) registers every
+///      recorded adapter afterwards. `make remove-price-adapter` retires one.
 ///
 /// @dev The constructors already reject zero addresses, out-of-range staleness / grace
 ///      periods and non-18-decimal tokens. This script adds one post-deploy price read
@@ -60,7 +61,11 @@ contract DeployPriceAdapter is Script {
     _smokeRead(adapter);
 
     _recordAdapter(deployment, record, vm.envOr("ALLOW_ADAPTER_REPLACE", false));
-    console2.log("  next: the verifier owner calls setPriceAdapter(token, adapter) on the BpsFeeCommitteeVerifier");
+    console2.log(
+      string.concat(
+        "  next: make apply-bps-config CHAIN=", chainAlias, " TAG=<bps verifier tag> (as its owner) registers it"
+      )
+    );
     if (ConfigLib.isDryRun()) {
       console2.log("  DRY RUN: nothing deployed, record NOT written - re-run with --broadcast");
       return adapter;
