@@ -19,6 +19,8 @@ contract WstETHUSDPriceAdapterForkTest is Test {
       vm.skip(true);
       return;
     }
+    // the fork id is not needed
+    // forge-lint: disable-next-line(unused-return)
     vm.createSelectFork(rpc);
 
     // Generous staleness so the pinned fork block doesn't trip the guard.

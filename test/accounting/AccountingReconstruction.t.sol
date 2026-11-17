@@ -125,6 +125,8 @@ contract AccountingReconstructionTest is Test {
     uint64 dest,
     Client.EVM2AnyMessage memory m
   ) internal view returns (uint16 fee) {
+    // the other return values are deliberately ignored
+    // forge-lint: disable-next-line(unused-return)
     (fee,,) = verifier.getFee(dest, m, "", bytes4(0));
   }
 
@@ -136,14 +138,18 @@ contract AccountingReconstructionTest is Test {
   ) internal view returns (uint16) {
     BpsFeeConfig memory c = verifier.getFeeConfig(dest);
     if (!c.enabled) {
+      // the other return values are deliberately ignored
+      // forge-lint: disable-next-line(unused-return)
       (BaseVerifier.RemoteChainConfigArgs memory rc,) = verifier.getRemoteChainConfig(dest);
       return rc.feeUSDCents; // flat fallback (bps policy disabled)
     }
     if (m.tokenAmounts.length == 0) {
+      // the other return values are deliberately ignored
+      // forge-lint: disable-next-line(unused-return)
       (BaseVerifier.RemoteChainConfigArgs memory rc,) = verifier.getRemoteChainConfig(dest);
       return rc.feeUSDCents; // data-only message -> flat fallback
     }
-    uint256 value;
+    uint256 value = 0;
     for (uint256 i = 0; i < m.tokenAmounts.length; ++i) {
       IPriceAdapter a = verifier.getPriceAdapter(m.tokenAmounts[i].token);
       if (address(a) == address(0)) continue; // unpriced -> zero
@@ -152,6 +158,8 @@ contract AccountingReconstructionTest is Test {
     uint256 fee = (value * uint256(c.feeBps)) / 10_000;
     if (fee < c.minFeeUSDCents) fee = c.minFeeUSDCents;
     if (fee > c.capUSDCents) fee = c.capUSDCents;
+    // casting to 'uint16' is safe because `fee` is clamped to the uint16 `capUSDCents` above
+    // forge-lint: disable-next-line(unsafe-typecast)
     return uint16(fee);
   }
 
@@ -219,6 +227,8 @@ contract AccountingReconstructionTest is Test {
   function test_callerInvariant() public {
     uint16 a = _onchain(DEST, _msg1(token1, 1e18));
     vm.prank(makeAddr("randomIndexer"));
+    // the other return values are deliberately ignored
+    // forge-lint: disable-next-line(unused-return)
     (uint16 b,,) = verifier.getFee(DEST, _msg1(token1, 1e18), "", bytes4(0));
     assertEq(a, b, "fee independent of caller");
   }

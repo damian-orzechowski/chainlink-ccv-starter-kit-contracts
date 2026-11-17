@@ -120,7 +120,7 @@ contract BpsFeeCommitteeVerifier is CommitteeVerifier {
     // the USD-cent results. This supports multi-token and mixed-token messages.
     // A message with no (priced) token transfer has zero value and falls to the
     // floor.
-    uint256 valueUSDCents;
+    uint256 valueUSDCents = 0;
     uint256 nTokens = message.tokenAmounts.length;
     bool requireAllPriced = s_requireAllTokensPriced;
     for (uint256 i = 0; i < nTokens; ++i) {
@@ -149,6 +149,8 @@ contract BpsFeeCommitteeVerifier is CommitteeVerifier {
     if (fee < cfg.minFeeUSDCents) fee = cfg.minFeeUSDCents; // floor
     if (fee > cfg.capUSDCents) fee = cfg.capUSDCents; // cap (<= 65_535)
 
+    // casting to 'uint16' is safe because `fee` is clamped to the uint16 `capUSDCents` above
+    // forge-lint: disable-next-line(unsafe-typecast)
     return (uint16(fee), baseCfg.gasForVerification, baseCfg.payloadSizeBytes);
   }
 
@@ -239,12 +241,12 @@ contract BpsFeeCommitteeVerifier is CommitteeVerifier {
     Client.EVM2AnyMessage memory message
   ) external view returns (address[] memory unpriced) {
     uint256 nTokens = message.tokenAmounts.length;
-    uint256 count;
+    uint256 count = 0;
     for (uint256 i = 0; i < nTokens; ++i) {
       if (address(s_priceAdapter[message.tokenAmounts[i].token]) == address(0)) ++count;
     }
     unpriced = new address[](count);
-    uint256 j;
+    uint256 j = 0;
     for (uint256 i = 0; i < nTokens; ++i) {
       address token = message.tokenAmounts[i].token;
       if (address(s_priceAdapter[token]) == address(0)) unpriced[j++] = token;

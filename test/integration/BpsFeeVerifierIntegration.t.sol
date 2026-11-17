@@ -121,6 +121,8 @@ contract BpsFeeVerifierIntegrationTest is Test {
   function _fee(
     Client.EVM2AnyMessage memory m
   ) internal view returns (uint16 f) {
+    // the other return values are deliberately ignored
+    // forge-lint: disable-next-line(unused-return)
     (f,,) = verifier.getFee(DEST, m, "", bytes4(0));
   }
 
@@ -154,6 +156,8 @@ contract BpsFeeVerifierIntegrationTest is Test {
     verifier.setRequireAllTokensPriced(true); // fail-closed posture
     vm.warp(block.timestamp + MAX_STALENESS + 1);
     vm.expectRevert(abi.encodeWithSelector(PriceFeedLib.StalePrice.selector, address(feed1), START_TS, MAX_STALENESS));
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     verifier.getFee(DEST, _msg1(token1, 1e18), "", bytes4(0));
   }
 
@@ -161,6 +165,8 @@ contract BpsFeeVerifierIntegrationTest is Test {
     verifier.setRequireAllTokensPriced(true); // fail-closed posture
     feed1.setAnswer(0);
     vm.expectRevert(abi.encodeWithSelector(PriceFeedLib.NonPositivePrice.selector, address(feed1), int256(0)));
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     verifier.getFee(DEST, _msg1(token1, 1e18), "", bytes4(0));
   }
 
@@ -186,6 +192,8 @@ contract BpsFeeVerifierIntegrationTest is Test {
     for (uint256 i = 0; i < decs.length; ++i) {
       uint8 d = decs[i];
       // $4800 / wstETH expressed at `d` decimals.
+      // casting to 'int256' is safe because `d` is at most 18, far below the int256 range
+      // forge-lint: disable-next-line(unsafe-typecast)
       MockAggregatorV3 f = new MockAggregatorV3(d, int256(4800 * (10 ** uint256(d))), block.timestamp);
       WstETHUSDPriceAdapter a = new WstETHUSDPriceAdapter(address(wstETH1), address(f), MAX_STALENESS);
       // 1 wstETH = $4800 = 480_000 cents, regardless of feed decimals.

@@ -157,6 +157,8 @@ contract DeployPriceAdapterTest is Test {
   function test_priceAdapterConfigByToken_revertsWhenUndeclared() public {
     Types.OperatorConfig memory op = _readOperator("undeclared", _l1Entry(TOKEN));
     vm.expectRevert();
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     reader.configByToken(op, OTHER_TOKEN);
   }
 
@@ -324,6 +326,8 @@ contract DeployPriceAdapterTest is Test {
         )
       )
     );
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     harness.record(d, _l1Record(address(0xB1)), false);
   }
 
@@ -459,6 +463,8 @@ contract DeployPriceAdapterTest is Test {
         )
       )
     );
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     drift.checkPriceAdapters(d);
   }
 

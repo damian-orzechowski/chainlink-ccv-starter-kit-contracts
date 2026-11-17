@@ -40,6 +40,8 @@ contract DeployBpsVerifierTest is Test {
 
     assertEq(harness.contractName(), "CommitteeVerifier");
     vm.expectRevert();
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     BpsFeeCommitteeVerifier(verifier).getFeeConfig(1);
   }
 

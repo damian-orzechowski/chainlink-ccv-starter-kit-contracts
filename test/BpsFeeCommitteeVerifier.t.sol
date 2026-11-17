@@ -124,6 +124,8 @@ contract BpsFeeCommitteeVerifierTest is Test {
     uint64 dest,
     Client.EVM2AnyMessage memory m
   ) internal view returns (uint16 feeUSDCents) {
+    // the other return values are deliberately ignored
+    // forge-lint: disable-next-line(unused-return)
     (feeUSDCents,,) = verifier.getFee(dest, m, "", bytes4(0));
   }
 
@@ -177,6 +179,8 @@ contract BpsFeeCommitteeVerifierTest is Test {
 
   function test_getFee_hugeTransfer_capsWithoutRevert() public view {
     // Enormous amount must clamp to cap and never overflow the uint16 cast.
+    // the other return values are deliberately ignored
+    // forge-lint: disable-next-line(unused-return)
     (uint16 fee,,) = verifier.getFee(DEST, _msg(tokenA, 1e30), "", bytes4(0));
     assertEq(fee, CAP_CENTS);
   }
@@ -228,6 +232,8 @@ contract BpsFeeCommitteeVerifierTest is Test {
 
   function test_getFee_revertsForUnconfiguredChain() public {
     vm.expectRevert(abi.encodeWithSelector(BaseVerifier.RemoteChainNotSupported.selector, UNCONFIGURED));
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     verifier.getFee(UNCONFIGURED, _msg(tokenA, 1e18), "", bytes4(0));
   }
 
@@ -249,12 +255,16 @@ contract BpsFeeCommitteeVerifierTest is Test {
     vm.expectRevert(
       abi.encodeWithSelector(FinalityCodec.InvalidRequestedFinality.selector, bytes4(uint32(50)), bytes4(uint32(100)))
     );
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     verifier.getFee(DEST, _msg(tokenA, 1e18), "", bytes4(uint32(50))); // depth 50 < 100 -> disallowed
   }
 
   function test_getFee_allowsPermittedFinality() public {
     verifier.setAllowedFinalityConfig(bytes4(uint32(100)));
     // depth 150 >= 100 is allowed; getFee proceeds and returns the in-range bps fee.
+    // the other return values are deliberately ignored
+    // forge-lint: disable-next-line(unused-return)
     (uint16 fee,,) = verifier.getFee(DEST, _msg(tokenA, 1e18), "", bytes4(uint32(150)));
     assertEq(fee, 50);
   }
@@ -347,6 +357,8 @@ contract BpsFeeCommitteeVerifierTest is Test {
     assertTrue(verifier.requireAllTokensPriced(), "strict posture set");
     // Now an unregistered token blocks the quote instead of pricing to zero.
     vm.expectRevert(abi.encodeWithSelector(BpsFeeCommitteeVerifier.UnpricedToken.selector, tokenUnpriced));
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     verifier.getFee(DEST, _msg2(tokenA, 1e18, tokenUnpriced, 5e18), "", bytes4(0));
   }
 
@@ -390,6 +402,8 @@ contract BpsFeeCommitteeVerifierTest is Test {
     // Fail-closed: the adapter's own revert bubbles unwrapped,
     // rather than degrading to the floor.
     vm.expectRevert(MockPriceAdapter.MockAdapterReverted.selector);
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     verifier.getFee(DEST, _msg(tokenA, 1e18), "", bytes4(0));
   }
 
