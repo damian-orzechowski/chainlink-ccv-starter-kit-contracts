@@ -85,6 +85,8 @@ contract RemovePriceAdapterTest is Test {
         )
       )
     );
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     script.callsFor(_deployment(), TOKEN, false);
   }
 

@@ -103,12 +103,11 @@ contract WstETHUSDL2PriceAdapter is IPriceAdapter {
     if (address(SEQUENCER_UPTIME_FEED) != address(0)) {
       PriceFeedLib.requireSequencerUp(SEQUENCER_UPTIME_FEED, GRACE_PERIOD);
     }
-    // wstETH -> ETH wei: amount * rate / 10^rateDecimals
+    // wstETH -> ETH: amount * rate / 10^rateDecimals; ETH -> USD cents: eth/1e18 * usdPrice/10^usdDec * 100.
+    // One division at the end, so no intermediate rounding (amounts below ~1e45 cannot overflow).
     uint256 rate = RATE_FEED.readFresh(RATE_MAX_STALENESS);
-    uint256 ethWei = (amount * rate) / (10 ** RATE_FEED_DECIMALS);
-    // ETH -> USD cents: ethWei/1e18 * usdPrice/10^usdDec * 100
     uint256 usdPrice = USD_FEED.readFresh(USD_MAX_STALENESS);
-    return (ethWei * usdPrice * CENTS_PER_USD) / (WAD * (10 ** USD_FEED_DECIMALS));
+    return (amount * rate * usdPrice * CENTS_PER_USD) / ((10 ** RATE_FEED_DECIMALS) * WAD * (10 ** USD_FEED_DECIMALS));
   }
 
   /// @inheritdoc IPriceAdapter

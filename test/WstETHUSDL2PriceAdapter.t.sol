@@ -70,6 +70,8 @@ contract WstETHUSDL2PriceAdapterTest is Test {
     uint256 staleAt = block.timestamp - (RATE_MAX + 1);
     rateFeed.setUpdatedAt(staleAt);
     vm.expectRevert(abi.encodeWithSelector(PriceFeedLib.StalePrice.selector, address(rateFeed), staleAt, RATE_MAX));
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     adapter.getValueInUSDCents(1e18);
   }
 
@@ -78,12 +80,16 @@ contract WstETHUSDL2PriceAdapterTest is Test {
     uint256 staleAt = block.timestamp - (USD_MAX + 1);
     usdFeed.setUpdatedAt(staleAt);
     vm.expectRevert(abi.encodeWithSelector(PriceFeedLib.StalePrice.selector, address(usdFeed), staleAt, USD_MAX));
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     adapter.getValueInUSDCents(1e18);
   }
 
   function test_reverts_whenRateNonPositive() public {
     rateFeed.setAnswer(0);
     vm.expectRevert(abi.encodeWithSelector(PriceFeedLib.NonPositivePrice.selector, address(rateFeed), int256(0)));
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     adapter.getValueInUSDCents(1e18);
   }
 
@@ -129,6 +135,8 @@ contract WstETHUSDL2PriceAdapterTest is Test {
     uint256 staleAt = block.timestamp - (USD_MAX + 1);
     usdFeed.setUpdatedAt(staleAt);
     vm.expectRevert(abi.encodeWithSelector(PriceFeedLib.StalePrice.selector, address(usdFeed), staleAt, USD_MAX));
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     noSeq.getValueInUSDCents(1e18);
   }
 
@@ -204,6 +212,8 @@ contract WstETHUSDL2PriceAdapterTest is Test {
   function test_reverts_whenSequencerDown() public {
     sequencer.setAnswer(1); // 1 == down
     vm.expectRevert(PriceFeedLib.SequencerDown.selector);
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     adapter.getValueInUSDCents(1e18);
   }
 
@@ -211,6 +221,8 @@ contract WstETHUSDL2PriceAdapterTest is Test {
     // startedAt == 0 is an uninitialized/invalid round -> treated as down.
     sequencer.setUpdatedAt(0);
     vm.expectRevert(PriceFeedLib.SequencerDown.selector);
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     adapter.getValueInUSDCents(1e18);
   }
 
@@ -218,6 +230,8 @@ contract WstETHUSDL2PriceAdapterTest is Test {
     // Sequencer just came up this block: timeSinceUp == 0 <= GRACE.
     sequencer.setUpdatedAt(block.timestamp);
     vm.expectRevert(abi.encodeWithSelector(PriceFeedLib.SequencerGracePeriodNotOver.selector, uint256(0), GRACE));
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     adapter.getValueInUSDCents(1e18);
   }
 
@@ -225,6 +239,8 @@ contract WstETHUSDL2PriceAdapterTest is Test {
     // timeSinceUp == GRACE is still within grace (the check is <=).
     sequencer.setUpdatedAt(block.timestamp - GRACE);
     vm.expectRevert(abi.encodeWithSelector(PriceFeedLib.SequencerGracePeriodNotOver.selector, GRACE, GRACE));
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     adapter.getValueInUSDCents(1e18);
   }
 

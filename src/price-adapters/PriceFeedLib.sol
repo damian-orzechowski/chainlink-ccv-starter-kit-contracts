@@ -50,9 +50,13 @@ library PriceFeedLib {
     AggregatorV3Interface sequencerUptimeFeed,
     uint256 gracePeriod
   ) internal view {
+    // the other return values are deliberately ignored
+    // forge-lint: disable-next-line(unused-return)
     (, int256 answer, uint256 startedAt,,) = sequencerUptimeFeed.latestRoundData();
     if (answer != 0 || startedAt == 0) revert SequencerDown();
     uint256 timeSinceUp = block.timestamp - startedAt;
+    // the grace period is measured against block time by design
+    // forge-lint: disable-next-line(block-timestamp)
     if (timeSinceUp <= gracePeriod) revert SequencerGracePeriodNotOver(timeSinceUp, gracePeriod);
   }
 
@@ -63,12 +67,18 @@ library PriceFeedLib {
     AggregatorV3Interface feed,
     uint256 maxStaleness
   ) internal view returns (uint256 answer) {
+    // the other return values are deliberately ignored
+    // forge-lint: disable-next-line(unused-return)
     (, int256 rawAnswer,, uint256 updatedAt,) = feed.latestRoundData();
     if (rawAnswer <= 0) revert NonPositivePrice(address(feed), rawAnswer);
     // updatedAt == 0 means "no data yet" and is treated as stale.
+    // staleness is measured against block time by design
+    // forge-lint: disable-next-line(block-timestamp)
     if (updatedAt == 0 || block.timestamp - updatedAt > maxStaleness) {
       revert StalePrice(address(feed), updatedAt, maxStaleness);
     }
+    // casting to 'uint256' is safe because a non-positive answer reverts above
+    // forge-lint: disable-next-line(unsafe-typecast)
     return uint256(rawAnswer);
   }
 }

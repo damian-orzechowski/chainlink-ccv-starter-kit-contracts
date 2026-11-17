@@ -67,9 +67,12 @@ contract ApplyBpsFeeConfigTest is Test {
     BaseScript.Call[] memory calls = _calls(_lanes(_fee(true, 5, 50, 5000)), true);
 
     assertEq(calls.length, 3, "adapters + one fee config + requireAllTokensPriced");
+    // truncating to 'bytes4' is deliberate: a call's selector is its first four bytes
+    // forge-lint: disable-start(unsafe-typecast)
     assertEq(bytes4(calls[0].data), BpsFeeCommitteeVerifier.setPriceAdapters.selector, "adapters first");
     assertEq(bytes4(calls[1].data), BpsFeeCommitteeVerifier.setFeeConfig.selector);
     assertEq(bytes4(calls[2].data), BpsFeeCommitteeVerifier.setRequireAllTokensPriced.selector, "strict switch last");
+    // forge-lint: disable-end(unsafe-typecast)
     for (uint256 i = 0; i < calls.length; ++i) {
       assertEq(calls[i].to, address(bps));
     }
@@ -93,6 +96,8 @@ contract ApplyBpsFeeConfigTest is Test {
 
   function test_callsFor_registersOnlyTheAdaptersNotYetCurrent() public {
     bps.setPriceAdapter(TOKEN, adapter);
+    // the other return values are deliberately ignored
+    // forge-lint: disable-next-line(unused-return)
     (address[] memory tokens,) = script.adaptersToRegister(address(bps), _adapters());
     assertEq(tokens.length, 1);
     assertEq(tokens[0], OTHER_TOKEN);
@@ -102,6 +107,8 @@ contract ApplyBpsFeeConfigTest is Test {
   function test_callsFor_repointsAReplacedAdapter() public {
     MockPriceAdapter old = new MockPriceAdapter(TOKEN, 1);
     bps.setPriceAdapter(TOKEN, old);
+    // the other return values are deliberately ignored
+    // forge-lint: disable-next-line(unused-return)
     (address[] memory tokens,) = script.adaptersToRegister(address(bps), _adapters());
     assertEq(tokens.length, 2, "TOKEN points at the old adapter, so it is restaged");
   }
@@ -132,11 +139,15 @@ contract ApplyBpsFeeConfigTest is Test {
         "ApplyBpsFeeConfig: lane no-remote enables a bps fee, but the verifier has no remote chain config (router) for its destination - run make apply-remote-config CHAIN=local_chain TAG=0x00020001 first (and execute it)"
       )
     );
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     script.callsFor(address(bps), new Types.PriceAdapterDeployment[](0), lanes, ALIAS, TAG, false);
   }
 
   function test_callsFor_rejectsOutOfBoundsPolicy() public {
     vm.expectRevert(bytes("ApplyBpsFeeConfig: lane lane bpsFeeConfig: feeBps must be <= 10000 (100%)"));
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-item(unused-return)
     script.callsFor(
       address(bps), new Types.PriceAdapterDeployment[](0), _lanes(_fee(true, 10_001, 1, 1)), ALIAS, TAG, false
     );
@@ -147,6 +158,8 @@ contract ApplyBpsFeeConfigTest is Test {
     adapters[0].addr = address(otherAdapter); // prices OTHER_TOKEN
     adapters[0].args.token = TOKEN;
     vm.expectRevert();
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     script.adaptersToRegister(address(bps), adapters);
   }
 
@@ -155,6 +168,8 @@ contract ApplyBpsFeeConfigTest is Test {
     adapters[0].addr = address(0xC0DE1E55);
     adapters[0].args.token = TOKEN;
     vm.expectRevert();
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     script.adaptersToRegister(address(bps), adapters);
   }
 

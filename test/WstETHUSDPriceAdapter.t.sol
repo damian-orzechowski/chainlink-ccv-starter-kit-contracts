@@ -45,12 +45,16 @@ contract WstETHUSDPriceAdapterTest is Test {
   function test_reverts_whenStale() public {
     vm.warp(block.timestamp + MAX_STALENESS + 1);
     vm.expectRevert(abi.encodeWithSelector(PriceFeedLib.StalePrice.selector, address(feed), START_TS, MAX_STALENESS));
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     adapter.getValueInUSDCents(1e18);
   }
 
   function test_reverts_whenNonPositivePrice() public {
     feed.setAnswer(0);
     vm.expectRevert(abi.encodeWithSelector(PriceFeedLib.NonPositivePrice.selector, address(feed), int256(0)));
+    // the expected revert is the assertion; the call returns no value
+    // forge-lint: disable-next-line(unused-return)
     adapter.getValueInUSDCents(1e18);
   }
 

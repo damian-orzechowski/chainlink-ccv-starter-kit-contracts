@@ -14,6 +14,8 @@ contract MockPriceAdapter is IPriceAdapter {
 
   error MockAdapterReverted();
 
+  // a test stub; zero is as valid a token fixture as any
+  // forge-lint: disable-next-item(missing-zero-check)
   constructor(
     address token_,
     uint256 usdCentsPerToken_
