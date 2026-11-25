@@ -180,8 +180,9 @@ contract BpsFeeVerifierIntegrationTest is Test {
   function test_integration_staleFeed_defaultStillPricesHealthyToken() public {
     // token1's feed stale, token2's fresh: message still prices from token2.
     // token2 1e18 -> 50_000; 50_000 * 5 / 10_000 = 25 cents. No revert.
-    vm.warp(block.timestamp + MAX_STALENESS + 1);
-    feed2.setUpdatedAt(block.timestamp); // refresh only token2's feed
+    uint256 staleTs = block.timestamp + MAX_STALENESS + 1;
+    vm.warp(staleTs);
+    feed2.setUpdatedAt(staleTs); // refresh only token2's feed
     assertEq(_fee(_msg2(token1, 1e18, token2, 1e18)), 25);
   }
 
